@@ -3,18 +3,15 @@
 # Globally disable globbing and enable exit-on-error.
 set -ef
 
-is_installed() {
-  if ! command -v "${1}" >/dev/null; then
-    printf '%s\n' "Please install ${1} and run the script again."
-    return 1
+# Check for required tools.
+for tool in jq curl zip date; do
+  if ! command -v "${tool}" >/dev/null; then
+    printf '%s\n' "Error: Please install ${tool} and run the script again."
+    exit 1
   fi
-}
+done
 
-# Check if the required tools are installed.
-is_installed jq
-is_installed curl
-is_installed zip
-
+# Download release files.
 temporary_directory="$(mktemp -d)"
 
 (
@@ -38,19 +35,22 @@ temporary_directory="$(mktemp -d)"
       while read -r release; do
         curl -fL --silent -O "https://releases.hashicorp.com/${product}/${release}/${product}_${release}_SHA256SUMS"
         curl -fL --silent -O "https://releases.hashicorp.com/${product}/${release}/${product}_${release}_SHA256SUMS.72D7468F.sig"
-
         for os in windows linux; do
-          curl -fL --silent -O "https://releases.hashicorp.com/${product}/${release}/${product}_${release}_${os}_amd64.zip" || true
+          # shellcheck disable=SC2043
+          for arch in amd64; do
+            download_url="https://releases.hashicorp.com/${product}/${release}/${product}_${release}_${os}_${arch}.zip"
+            printf '%s\n' "-> Downloading ${download_url}..."
+            curl -fL --silent -O "${download_url}" || true
+          done
         done
       done
   done
 )
 
-output_directory="${HOME}/Desktop"
-printf '%s\n' "Saving the releases to '${output_directory}/hashicorp_releases.zip'..."
-
 # Create an archive of the release files.
-zip -jrq "${output_directory}/hashicorp_releases.zip" "${temporary_directory}"
+archive_directory="${XDG_DOWNLOAD_DIR:-${HOME}/Downloads}/hashicorp-releases-$(date +"%Y%m%d%H%M%S").zip"
+printf '%s\n' "-> Creating an archive of the releases in '${archive_directory}'..."
+zip -jrq "${archive_directory}" "${temporary_directory}"
 
 # Cleanup the temporary directory.
 rm -rf "${temporary_directory}"
