@@ -95,14 +95,15 @@ foreach ($file in Get-ChildItem -Path $tempFolderPath -Recurse -File) {
     }
 
     $uploadUri = "$ArtifactoryUrl/artifactory/$ArtifactoryRepository/$ArtifactoryBasePath/$targetPath;$metadata"
-    Write-Output "Uploading $fileName to $uploadUri..."
 
     $headers = @{
         "X-JFrog-Art-Api" = $ArtifactoryApiKey
     }
 
     try {
-        Invode-RestMethod `
+        Write-Output "Checking if $fileName already exists..."
+
+        Invoke-RestMethod `
             -Uri "$ArtifactoryUrl/artifactory/api/storage/$ArtifactoryRepository/$ArtifactoryBasePath/$targetPath" `
             -Method GET `
             -Headers $headers `
@@ -111,6 +112,8 @@ foreach ($file in Get-ChildItem -Path $tempFolderPath -Recurse -File) {
         Write-Output "$fileName already exists, skipping upload."
     } catch {
         try {
+            Write-Output "Uploading $fileName to $uploadUri..."
+
             Invoke-RestMethod `
                 -Uri $uploadUri `
                 -Method PUT `
