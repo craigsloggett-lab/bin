@@ -128,5 +128,8 @@ foreach ($file in Get-ChildItem -Path $tempFolderPath -Recurse -File) {
     }
 }
 
-Remove-Item $tempFolderPath -Recurse
 Write-Output "Successfully uploaded releases to Artifactory."
+
+Write-Output "Cleaning up $tempFolderPath..."
+Remove-Item $tempFolderPath -Recurse
+Write-Output "Successfully removed $tempFolderPath."
