@@ -64,7 +64,7 @@ New-Item -Type Directory -Path $tempFolderPath | Out-Null
 
 # Extract the ZIP archive.
 try {
-    Write-Verbose "Extracting archive: $ArchivePath to $tempFolderPath..."
+    Write-Output "Extracting archive: $ArchivePath to $tempFolderPath..."
     Expand-Archive -Path $ArchivePath -DestinationPath $tempFolderPath -Force
 } catch {
     Write-Error "Failed to extract archive: $_"
@@ -95,7 +95,7 @@ foreach ($file in Get-ChildItem -Path $tempFolderPath -Recurse -File) {
     }
 
     $uploadUri = "$ArtifactoryUrl/artifactory/$ArtifactoryRepository/$ArtifactoryBasePath/$targetPath;$metadata"
-    Write-Verbose "Uploading $fileName to $uploadUri..."
+    Write-Output "Uploading $fileName to $uploadUri..."
 
     try {
         $headers = @{
@@ -103,16 +103,17 @@ foreach ($file in Get-ChildItem -Path $tempFolderPath -Recurse -File) {
         }
 
         Invoke-RestMethod `
-            -Uri $uploadUrl `
+            -Uri $uploadUri `
             -Method PUT `
             -Headers $headers `
             -InFile $file.FullName `
             -ContentType "application/octet-stream"
 
-        Write-Verbose "Successfully uploaded: $fileName"
+        Write-Output "Successfully uploaded: $fileName"
     } catch {
         Write-Error "Failed to upload $fileName. Error: $_"
     }
 }
 
+Remove-Item $tempFolderPath -Recurse
 Write-Output "Successfully uploaded releases to Artifactory."
