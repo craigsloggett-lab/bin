@@ -57,15 +57,15 @@ param (
 
     [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
-    [string]$ArtifactoryApiKey
+    [string]$ArtifactoryApiKey,
 
     [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
-    [string]$TerraformEnterpriseUrl
+    [string]$TerraformEnterpriseUrl,
 
     [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
-    [string]$TerraformEnterpriseOrganization
+    [string]$TerraformEnterpriseOrganization,
 
     [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
@@ -81,11 +81,11 @@ $artifactoryHeaders = @{
 }
 
 $terraformEnterpriseHeaders = @{
-    "Authorization: Bearer $TerraformEnterpriseToken"
-    "Content-Type: application/vnd.api+json"
+    "Authorization" = "Bearer $TerraformEnterpriseToken"
+    "Content-Type" = "application/vnd.api+json"
 }
 
-$artifactoryBaseUri = "$ArtifactoryUrl/artifactory/api/storage/$ArtifactoryRepository/$ArtifactoryBasePath"
+$artifactoryBaseUri = "$ArtifactoryUrl/artifactory/api/storage/$ArtifactoryRepository/$ArtifactoryBasePath/terraform-providers"
 
 $namespaces = Invoke-RestMethod `
     -Uri "$artifactoryBaseUri" `
