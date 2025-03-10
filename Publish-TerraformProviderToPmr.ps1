@@ -36,9 +36,9 @@
       -ArtifactoryUrl "https://artifactory.example.com" `
       -ArtifactoryRepository "terraform-providers" `
       -ArtifactoryBasePath "terraform/providers" `
-      -ArtifactoryApiKey "your-api-key"
-      -TerraformEnterpriseUrl "https://tfe.example.com"
-      -TerraformEnterpriseOrganization "tfe-org"
+      -ArtifactoryApiKey "your-api-key" `
+      -TerraformEnterpriseUrl "https://tfe.example.com" `
+      -TerraformEnterpriseOrganization "tfe-org" `
       -TerraformEnterpriseToken "my-tfe-token"
 #>
 
