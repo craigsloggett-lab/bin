@@ -38,7 +38,7 @@ temporary_directory="$(mktemp -d)"
 )
 
 # Create an archive of the release files.
-archive_directory="${XDG_DOWNLOAD_DIR:-${HOME}/Downloads}/hashicorp-providers-$(date +"%Y%m%d%H%M%S").zip"
+archive_directory="${XDG_DOWNLOAD_DIR:-${HOME}/Downloads}/terraform-providers-$(date +"%Y%m%d%H%M%S").zip"
 printf '%s\n' "-> Creating an archive of the releases in '${archive_directory}'..."
 zip -jrq "${archive_directory}" "${temporary_directory}"
 
