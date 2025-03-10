@@ -124,13 +124,18 @@ foreach ($namespace in $namespaces.children.uri) {
 
             foreach ($file in $files.children.uri) {
                 Write-Output "Found the following Terraform provider file: $file"
-                Write-Output "Downloading $file to $tempFolderPath..."
 
-                $files = Invoke-RestMethod `
-                    -Uri "$artifactoryDownloadUri/$namespace/$provider/$version/$file" `
-                    -Method GET `
-                    -Headers $artifactoryHeaders `
-                    -ContentType "application/json"
+                if (Test-Path -Path "$tempFolderPath\$file" -PathType Leaf) {
+                    Write-Output "$file already exists at $tempFolderPath, skipping download."
+                } else {
+                    Write-Output "Downloading $file to $tempFolderPath..."
+
+                    $files = Invoke-RestMethod `
+                        -Uri "$artifactoryDownloadUri/$namespace/$provider/$version/$file" `
+                        -Method GET `
+                        -Headers $artifactoryHeaders `
+                        -OutFile "$tempFolderPath\$file"
+                }
             }
         }
     }
