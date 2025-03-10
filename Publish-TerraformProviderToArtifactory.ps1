@@ -22,7 +22,7 @@
     API key for authenticating with Artifactory.
 
 .EXAMPLE
-    .\Publish-TerraformProvider.ps1 `
+    .\Publish-TerraformProviderToArtifactory.ps1 `
       -ArchivePath "C:\Downloads\hashicorp-providers-20250310112047.zip" `
       -ArtifactoryUrl "https://artifactory.example.com" `
       -ArtifactoryRepository "terraform-providers" `
