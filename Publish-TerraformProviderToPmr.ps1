@@ -85,35 +85,53 @@ $terraformEnterpriseHeaders = @{
     "Content-Type" = "application/vnd.api+json"
 }
 
-$artifactoryBaseUri = "$ArtifactoryUrl/artifactory/api/storage/$ArtifactoryRepository/$ArtifactoryBasePath/terraform-providers"
+$artifactoryQueryUri = "$ArtifactoryUrl/artifactory/api/storage/$ArtifactoryRepository/$ArtifactoryBasePath/terraform-providers"
+$artifactoryDownloadUri = "$ArtifactoryUrl/artifactory/$ArtifactoryRepository/$ArtifactoryBasePath/terraform-providers"
 
 $namespaces = Invoke-RestMethod `
-    -Uri "$artifactoryBaseUri" `
+    -Uri "$artifactoryQueryUri" `
     -Method GET `
     -Headers $artifactoryHeaders `
     -ContentType "application/json"
 
 # Iterate through each Terraform provider namespace found in Artifactory.
 foreach ($namespace in $namespaces.children.uri) {
-    Write-Output "Found the $namespace Terraform provider namespace..."
+    Write-Output "Found the following Terraform provider namespace: $namespace"
 
     $providers = Invoke-RestMethod `
-        -Uri "$artifactoryBaseUri/$namespace" `
+        -Uri "$artifactoryQueryUri/$namespace" `
         -Method GET `
         -Headers $artifactoryHeaders `
         -ContentType "application/json"
 
     foreach ($provider in $providers.children.uri) {
-        Write-Output "Found the $provider Terraform provider..."
+        Write-Output "Found the following Terraform provider: $provider"
         
         $versions = Invoke-RestMethod `
-            -Uri "$artifactoryBaseUri/$namespace/$provider" `
+            -Uri "$artifactoryQueryUri/$namespace/$provider" `
             -Method GET `
             -Headers $artifactoryHeaders `
             -ContentType "application/json"
 
         foreach ($version in $versions.children.uri) {
-            Write-Output "Found the $version Terraform provider version..."
+            Write-Output "Found the following Terraform provider version: $version"
+
+            $files = Invoke-RestMethod `
+                -Uri "$artifactoryQueryUri/$namespace/$provider/$version" `
+                -Method GET `
+                -Headers $artifactoryHeaders `
+                -ContentType "application/json"
+
+            foreach ($file in $files.children.uri) {
+                Write-Output "Found the following Terraform provider file: $file"
+                Write-Output "Downloading $file to $tempFolderPath..."
+
+                $files = Invoke-RestMethod `
+                    -Uri "$artifactoryDownloadUri/$namespace/$provider/$version/$file" `
+                    -Method GET `
+                    -Headers $artifactoryHeaders `
+                    -ContentType "application/json"
+            }
         }
     }
 }
