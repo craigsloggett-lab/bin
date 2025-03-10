@@ -125,16 +125,35 @@ foreach ($namespace in $namespaces.children.uri) {
             foreach ($file in $files.children.uri) {
                 Write-Output "Found the following Terraform provider file: $file"
 
-                if (Test-Path -Path "$tempFolderPath\$file" -PathType Leaf) {
-                    Write-Output "$file already exists at $tempFolderPath, skipping download."
-                } else {
-                    Write-Output "Downloading $file to $tempFolderPath..."
+                try {
+                    if (Test-Path -Path "$tempFolderPath\$file" -PathType Leaf) {
+                        Write-Output "$file already exists at $tempFolderPath, skipping download."
+                    } else {
+                        Write-Output "Downloading $file to $tempFolderPath..."
 
-                    $files = Invoke-RestMethod `
-                        -Uri "$artifactoryDownloadUri/$namespace/$provider/$version/$file" `
-                        -Method GET `
-                        -Headers $artifactoryHeaders `
-                        -OutFile "$tempFolderPath\$file"
+                        $files = Invoke-RestMethod `
+                            -Uri "$artifactoryDownloadUri/$namespace/$provider/$version/$file" `
+                            -Method GET `
+                            -Headers $artifactoryHeaders `
+                            -OutFile "$tempFolderPath\$file"
+                    }
+
+                    try {
+                        $providerData = @{
+                            data = @{
+                                type = "registry-providers"
+                                attributes = @{
+                                    name = ($provider -replace '/', '')
+                                    namespace = ($namespace -replace '/', '')
+                                    "registry-name" = "private"
+                                }
+                            }
+                        }
+                    } catch {
+                        Write-Output "Terraform provider already exists: ($provider -replace '/', '')"
+                    }
+                } catch {
+                    Write-Error "Failed to download $file. Error: $_"
                 }
             }
         }
