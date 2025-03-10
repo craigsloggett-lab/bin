@@ -22,7 +22,7 @@
     API key for authenticating with Artifactory.
 
 .EXAMPLE
-    .\Publish-HashiCorpRelease.ps1 `
+    .\Publish-HashiCorpReleaseToArtifactory.ps1 `
       -ArchivePath "C:\Downloads\hashicorp-releases-20250307104034.zip" `
       -ArtifactoryUrl "https://artifactory.example.com" `
       -ArtifactoryRepository "hashicorp-releases" `
