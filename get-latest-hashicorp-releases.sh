@@ -17,7 +17,7 @@ temporary_directory="$(mktemp -d)"
 (
   cd "${temporary_directory}"
 
-  for product in boundary consul nomad packer terraform vault; do
+  for product in boundary consul nomad nomad-autoscaler packer terraform vault; do
     latest_version="$(curl --silent --request GET "https://releases.hashicorp.com/${product}/index.json" |
       jq -r '.versions[].version' |
       sort -Vr |
