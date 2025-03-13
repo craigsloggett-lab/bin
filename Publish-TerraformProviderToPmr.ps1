@@ -77,7 +77,7 @@ $artifactoryUrl = ($ArtifactoryUrl.TrimEnd('/'))
 $terraformEnterpriseUrl = ($TerraformEnterpriseUrl.TrimEnd('/'))
 
 # Create the extraction directory.
-$tempFolderPath = Join-Path $Env:Temp $(New-Guid)
+$tempFolderPath = Join-Path "$Env:USERPROFILE\Downloads" "TerraformProviders"
 New-Item -Type Directory -Path $tempFolderPath | Out-Null
 
 $artifactoryHeaders = @{
