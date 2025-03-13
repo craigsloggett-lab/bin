@@ -72,6 +72,10 @@ param (
     [string]$TerraformEnterpriseToken
 )
 
+# Clean-up input URLs.
+$artifactoryUrl = ($ArtifactoryUrl.TrimEnd('/'))
+$terraformEnterpriseUrl = ($TerraformEnterpriseUrl.TrimEnd('/'))
+
 # Create the extraction directory.
 $tempFolderPath = Join-Path $Env:Temp $(New-Guid)
 New-Item -Type Directory -Path $tempFolderPath | Out-Null
@@ -85,8 +89,8 @@ $terraformEnterpriseHeaders = @{
     "Content-Type" = "application/vnd.api+json"
 }
 
-$artifactoryQueryUri = "$ArtifactoryUrl/artifactory/api/storage/$ArtifactoryRepository/$ArtifactoryBasePath/terraform-providers"
-$artifactoryDownloadUri = "$ArtifactoryUrl/artifactory/$ArtifactoryRepository/$ArtifactoryBasePath/terraform-providers"
+$artifactoryQueryUri = "$artifactoryUrl/artifactory/api/storage/$ArtifactoryRepository/$ArtifactoryBasePath/terraform-providers"
+$artifactoryDownloadUri = "$artifactoryUrl/artifactory/$ArtifactoryRepository/$ArtifactoryBasePath/terraform-providers"
 
 $namespaces = Invoke-RestMethod `
     -Uri "$artifactoryQueryUri" `
@@ -95,7 +99,7 @@ $namespaces = Invoke-RestMethod `
     -ContentType "application/json"
 
 # Iterate through each Terraform provider namespace found in Artifactory.
-foreach ($namespace in $namespaces.children.uri) {
+foreach ($namespace in $namespaces.children.uri.Trim('/')) {
     Write-Output "Found the following Terraform provider namespace: $namespace"
 
     $providers = Invoke-RestMethod `
@@ -104,7 +108,7 @@ foreach ($namespace in $namespaces.children.uri) {
         -Headers $artifactoryHeaders `
         -ContentType "application/json"
 
-    foreach ($provider in $providers.children.uri) {
+    foreach ($provider in $providers.children.uri.Trim('/')) {
         Write-Output "Found the following Terraform provider: $provider"
         
         $versions = Invoke-RestMethod `
@@ -113,7 +117,7 @@ foreach ($namespace in $namespaces.children.uri) {
             -Headers $artifactoryHeaders `
             -ContentType "application/json"
 
-        foreach ($version in $versions.children.uri) {
+        foreach ($version in $versions.children.uri.Trim('/')) {
             Write-Output "Found the following Terraform provider version: $version"
 
             $files = Invoke-RestMethod `
@@ -122,7 +126,7 @@ foreach ($namespace in $namespaces.children.uri) {
                 -Headers $artifactoryHeaders `
                 -ContentType "application/json"
 
-            foreach ($file in $files.children.uri) {
+            foreach ($file in $files.children.uri.Trim('/')) {
                 Write-Output "Found the following Terraform provider file: $file"
 
                 try {
@@ -143,14 +147,14 @@ foreach ($namespace in $namespaces.children.uri) {
                             data = @{
                                 type = "registry-providers"
                                 attributes = @{
-                                    name = ($provider -replace '/', '')
-                                    namespace = ($namespace -replace '/', '')
+                                    name = ($provider)
+                                    namespace = ($namespace)
                                     "registry-name" = "private"
                                 }
                             }
                         }
                     } catch {
-                        Write-Output "Terraform provider already exists: ($provider -replace '/', '')"
+                        Write-Output "Terraform provider already exists: ($provider)"
                     }
                 } catch {
                     Write-Error "Failed to download $file. Error: $_"
