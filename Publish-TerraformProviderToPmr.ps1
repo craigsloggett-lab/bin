@@ -235,7 +235,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                 $version = $fileNameSplit[1]
 
                 if ($fileNameSplit[2] -like "SHA256SUMS*") {
-                  # Upload the signature files using $response.data.links."shasums-upload".
+                  # TODO: Upload the signature files using $response.data.links."shasums-upload".
                 } else {
                   $os = $fileNameSplit[2]
                   $arch = $fileNameSplit[3]
@@ -263,7 +263,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                                 attributes = @{
                                     os = ($os)
                                     arch = ($arch)
-                                    shasum = "11111" # Get the SHASUM for the file.
+                                    shasum = "11111" # TODO: Get the SHASUM for the file.
                                     filename = $file
                                 }
                             }
