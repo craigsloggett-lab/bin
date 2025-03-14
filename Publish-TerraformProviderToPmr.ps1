@@ -86,11 +86,11 @@ $tfeHeaders = @{
     "Authorization" = "Bearer $TerraformEnterpriseToken"
 }
 
-$tfeListProvidersUri = "$tfeUrl/api/v2/organizations/$TerraformEnterpriseOrganization/registry-providers"
+$tfeRegistryProvidersUri = "$tfeUrl/api/v2/organizations/$TerraformEnterpriseOrganization/registry-providers"
 
 try {
     $tfeListProvidersResponse = Invoke-RestMethod `
-        -Uri $tfeListProvidersUri `
+        -Uri $tfeRegistryProvidersUri `
         -Method GET `
         -Headers $tfeHeaders `
         -ContentType "application/vnd.api+json"
@@ -132,9 +132,9 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
         
         if ($tfeListProvidersResponse.data.attributes.name.Contains($provider)) {
             # Get a list of versions published to the PMR for this provider.
-            $tfeGetAllVersionsUri = "$tfeListProvidersUri/private/$TerraformEnterpriseOrganization/$provider/versions"
-            $tfeGetAllVersionsResponse = Invoke-RestMethod `
-                -Uri $tfeGetAllVersionsUri `
+            $tfeRegistryProviderVersionsUri = "$tfeRegistryProvidersUri/private/$TerraformEnterpriseOrganization/$provider/versions"
+            $tfeRegistryProviderVersionsResponse = Invoke-RestMethod `
+                -Uri $tfeRegistryProviderVersionsUri `
                 -Method GET `
                 -Headers $tfeHeaders `
                 -ContentType "application/vnd.api+json"
@@ -142,7 +142,8 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
             # Create a provider with the TFE API.
             Write-Output "Creating a private provider in Terraform Enterprise for: $provider"
             try {
-                $providerData = @{
+                # Build the payload.
+                $providerPayload = @{
                     data = @{
                         type = "registry-providers"
                         attributes = @{
@@ -151,8 +152,15 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                             "registry-name" = "private"
                         }
                     }
-                }
-                # TODO: Add Invoke-RestMethod to POST a new provider.
+                } | ConvertTo-Json -Depth 10
+
+                # Create the provider.
+                $providerResponse = Invoke-RestMethod `
+                    -Uri $tfeRegistryProvidersUri `
+                    -Method POST `
+                    -Headers $tfeHeaders `
+                    -Body $providerPayload `
+                    -ContentType "application/vnd.api+json"
             } catch {
                 Write-Error "Failed to publish to Terraform Enterprise: $_"
                 exit 1
@@ -168,16 +176,16 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
         foreach ($version in $versions.children.uri.Trim('/')) {
             Write-Output "Found the following Terraform provider version in Artifactory: $version"
 
-            $versionResponse = ($tfeGetAllVersionsResponse.data | Where-Object { $_.attributes.version -eq $version })
+            $versionResponse = ($tfeRegistryProviderVersionsResponse.data | Where-Object { $_.attributes.version -eq $version })
             if ($versionResponse) {
                 # The version has been published to TFE, grab the SHA256SUMS upload URLs.
                 $shasumsUploadUri = $versionResponse.links."shasums-upload"
                 $shasumsSigUploadUri = $versionResponse.links."shasums-sig-upload"
 
                 # Get a list of platforms published to the PMR for this version.
-                $tfeGetAllPlatformsUri = "$tfeGetAllVersionsUri/$version/platforms"
-                $tfeGetAllPlatformsResponse = Invoke-RestMethod `
-                    -Uri $tfeGetAllPlatformsUri `
+                $tfeRegistryProviderVersionPlatformsUri = "$tfeRegistryProviderVersionsUri/$version/platforms"
+                $tfeRegistryProviderVersionPlatformsResponse = Invoke-RestMethod `
+                    -Uri $tfeRegistryProviderVersionPlatformsUri `
                     -Method GET `
                     -Headers $tfeHeaders `
                     -ContentType "application/vnd.api+json"
@@ -185,7 +193,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                 # Create a provider version with the TFE API.
                 Write-Output "Creating a provider version in Terraform Enterprise for: $version"
                 try {
-                    $providerData = @{
+                    $providerVersionPayload = @{
                         data = @{
                             type = "registry-provider-versions"
                             attributes = @{
@@ -194,9 +202,18 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                                 protocols = @("5.0")
                             }
                         }
-                    }
-                    # TODO: Add Invoke-RestMethod to POST a new provider version.
-                    # Capture the $response.data.links."shasums-upload" link.
+                    } | ConvertTo-Json -Depth 10
+
+                    # Create the provider version.
+                    $providerVersionResponse = Invoke-RestMethod `
+                        -Uri $tfeRegistryProviderVersionsUri `
+                        -Method POST `
+                        -Headers $tfeHeaders `
+                        -Body $providerVersionPayload `
+                        -ContentType "application/vnd.api+json"
+
+                    $shasumsUploadUri = $providerVersionResponse.data.links."shasums-upload"
+                    $shasumsSigUploadUri = $providerVersionResponse.data.links."shasums-sig-upload"
                 } catch {
                     Write-Error "Failed to publish to Terraform Enterprise: $_"
                     exit 1
@@ -224,33 +241,43 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                   $arch = $fileNameSplit[3]
                 }
 
-                if (
-                  $tfeGetAllPlatformsResponse.data.attributes.os.Contains($os) -and
-                  $tfeGetAllPlatformsResponse.data.attributes.arch.Contains($arch)
-                ) {
-                    # A platform for this OS and architecture has been published to TFE, grab the binary upload URL.
-                    $platformResponse = ($tfeGetAllPlatformsResponse.data | Where-Object { 
-                        $_.attributes.os -eq $os -and $_.attributes.arch -eq $arch 
-                    })
-                    $providerBinaryUploadUri = $platformResponse.links."provider-binary-upload"
+                if ($versionResponse) {
+                    if (
+                        $tfeRegistryProviderVersionPlatformsResponse.data.attributes.os.Contains($os) -and
+                        $tfeRegistryProviderVersionPlatformsResponse.data.attributes.arch.Contains($arch)
+                    ) {
+                        # A platform for this OS and architecture has been published to TFE, grab the binary upload URL.
+                        $platformResponse = ($tfeRegistryProviderVersionPlatformsResponse.data | Where-Object { 
+                            $_.attributes.os -eq $os -and $_.attributes.arch -eq $arch 
+                        })
+                        $providerBinaryUploadUri = $platformResponse.links."provider-binary-upload"
+                    }
                 } else {
                     # Create a platform for this OS and architecture with the TFE API.
                     Write-Output "Creating a provider platform in Terraform Enterprise for: $os_$arch"
 
                     try {
-                        $providerData = @{
+                        $providerVersionPlatformPayload = @{
                             data = @{
                                 type = "registry-provider-version-platforms"
                                 attributes = @{
                                     os = ($os)
                                     arch = ($arch)
-                                    shasum = "" # Get the SHASUM for the file.
+                                    shasum = "11111" # Get the SHASUM for the file.
                                     filename = $file
                                 }
                             }
-                        }
-                        # TODO: Add Invoke-RestMethod to POST a new provider platform.
-                        # Capture the $response.data.links."provider-binary-upload" link.
+                        } | ConvertTo-Json -Depth 10
+
+                        # Create the provider version platform.
+                        $providerPlatformResponse = Invoke-RestMethod `
+                            -Uri $tfeRegistryProviderVersionPlatformsUri `
+                            -Method POST `
+                            -Headers $tfeHeaders `
+                            -Body $providerVersionPlatformPayload `
+                            -ContentType "application/vnd.api+json"
+
+                        $providerBinaryUploadUri = $providerPlatformResponse.data.links."provider-binary-upload"
                     } catch {
                         Write-Error "Failed to publish to Terraform Enterprise: $_"
                         exit 1
