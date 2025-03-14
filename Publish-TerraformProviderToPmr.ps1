@@ -168,9 +168,9 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
         foreach ($version in $versions.children.uri.Trim('/')) {
             Write-Output "Found the following Terraform provider version in Artifactory: $version"
 
-            if ($tfeGetAllVersionsResponse.data.attributes.version.Contains($version)) {
+            $versionResponse = ($tfeGetAllVersionsResponse.data | Where-Object { $_.attributes.version -eq $version })
+            if ($versionResponse) {
                 # The version has been published to TFE, grab the SHA256SUMS upload URLs.
-                $versionResponse = ($tfeGetAllVersionsResponse.data | Where-Object { $_.attributes.version -eq $version })
                 $shasumsUploadUri = $versionResponse.links."shasums-upload"
                 $shasumsSigUploadUri = $versionResponse.links."shasums-sig-upload"
 
@@ -183,7 +183,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                     -ContentType "application/vnd.api+json"
             } else {
                 # Create a provider version with the TFE API.
-                Write-Output "Creating a private provider in Terraform Enterprise for: $provider"
+                Write-Output "Creating a provider version in Terraform Enterprise for: $version"
                 try {
                     $providerData = @{
                         data = @{
@@ -191,7 +191,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                             attributes = @{
                                 version = ($version)
                                 "key-id" = "34365D9472D7468F"
-                                "protocols" = ["5.0"]
+                                protocols = @("5.0")
                             }
                         }
                     }
@@ -284,7 +284,6 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                 } else {
                     Write-Output "$file has already been published to the registry, skipping publication."
                 }
-
             }
         }
     }
