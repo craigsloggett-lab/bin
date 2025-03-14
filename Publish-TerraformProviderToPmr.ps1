@@ -74,29 +74,49 @@ param (
 
 # Clean-up input URLs.
 $artifactoryUrl = ($ArtifactoryUrl.TrimEnd('/'))
-$terraformEnterpriseUrl = ($TerraformEnterpriseUrl.TrimEnd('/'))
+$tfeUrl = ($TerraformEnterpriseUrl.TrimEnd('/'))
 
 # Create the extraction directory.
 $tempFolderPath = Join-Path "$Env:USERPROFILE\Downloads" "TerraformProviders"
 New-Item -Type Directory -Force -Path $tempFolderPath | Out-Null
 
-$artifactoryHeaders = @{
-    "X-JFrog-Art-Api" = $ArtifactoryApiKey
-}
+# Query the Terraform Enterprise Private Module Registry to get existing providers.
 
-$terraformEnterpriseHeaders = @{
+$tfeHeaders = @{
     "Authorization" = "Bearer $TerraformEnterpriseToken"
     "Content-Type" = "application/vnd.api+json"
+}
+
+$tfeListProvidersUri = "$tfeUrl/api/v2/organizations/$TerraformEnterpriseOrganization/registry-providers"
+
+try {
+    $tfeListProvidersResponse = Invoke-RestMethod `
+        -Uri $tfeListProvidersUri `
+        -Method GET `
+        -Headers $tfeHeaders `
+        -ContentType "application/vnd.api+json"
+} catch {
+    Write-Error "Failed to query Terraform Enterprise: $_"
+    exit 1
+}
+
+$artifactoryHeaders = @{
+    "X-JFrog-Art-Api" = $ArtifactoryApiKey
 }
 
 $artifactoryQueryUri = "$artifactoryUrl/artifactory/api/storage/$ArtifactoryRepository/$ArtifactoryBasePath/terraform-providers"
 $artifactoryDownloadUri = "$artifactoryUrl/artifactory/$ArtifactoryRepository/$ArtifactoryBasePath/terraform-providers"
 
-$namespaces = Invoke-RestMethod `
-    -Uri "$artifactoryQueryUri" `
-    -Method GET `
-    -Headers $artifactoryHeaders `
-    -ContentType "application/json"
+try {
+    $namespaces = Invoke-RestMethod `
+        -Uri "$artifactoryQueryUri" `
+        -Method GET `
+        -Headers $artifactoryHeaders `
+        -ContentType "application/json"
+} catch {
+    Write-Error "Failed to query Artifactory: $_"
+    exit 1
+}
 
 # Iterate through each Terraform provider namespace found in Artifactory.
 foreach ($namespace in $namespaces.children.uri.Trim('/')) {
