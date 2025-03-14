@@ -84,7 +84,6 @@ New-Item -Type Directory -Force -Path $tempFolderPath | Out-Null
 
 $tfeHeaders = @{
     "Authorization" = "Bearer $TerraformEnterpriseToken"
-    "Content-Type" = "application/vnd.api+json"
 }
 
 $tfeListProvidersUri = "$tfeUrl/api/v2/organizations/$TerraformEnterpriseOrganization/registry-providers"
@@ -108,7 +107,7 @@ $artifactoryQueryUri = "$artifactoryUrl/artifactory/api/storage/$ArtifactoryRepo
 $artifactoryDownloadUri = "$artifactoryUrl/artifactory/$ArtifactoryRepository/$ArtifactoryBasePath/terraform-providers"
 
 try {
-    $namespaces = Invoke-RestMethod `
+    $providerNamespaces = Invoke-RestMethod `
         -Uri "$artifactoryQueryUri" `
         -Method GET `
         -Headers $artifactoryHeaders `
@@ -119,66 +118,173 @@ try {
 }
 
 # Iterate through each Terraform provider namespace found in Artifactory.
-foreach ($namespace in $namespaces.children.uri.Trim('/')) {
-    Write-Output "Found the following Terraform provider namespace: $namespace"
+foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
+    Write-Output "Found the following Terraform provider namespace in Artifactory: $providerNamespace"
 
     $providers = Invoke-RestMethod `
-        -Uri "$artifactoryQueryUri/$namespace" `
+        -Uri "$artifactoryQueryUri/$providerNamespace" `
         -Method GET `
         -Headers $artifactoryHeaders `
         -ContentType "application/json"
 
     foreach ($provider in $providers.children.uri.Trim('/')) {
-        Write-Output "Found the following Terraform provider: $provider"
+        Write-Output "Found the following Terraform provider in Artifactory: $provider"
         
+        if ($tfeListProvidersResponse.data.attributes.name.Contains($provider)) {
+            # Get a list of versions published to the PMR for this provider.
+            $tfeGetAllVersionsUri = "$tfeListProvidersUri/private/$TerraformEnterpriseOrganization/$provider/versions"
+            $tfeGetAllVersionsResponse = Invoke-RestMethod `
+                -Uri $tfeGetAllVersionsUri `
+                -Method GET `
+                -Headers $tfeHeaders `
+                -ContentType "application/vnd.api+json"
+        } else {
+            # Create a provider with the TFE API.
+            Write-Output "Creating a private provider in Terraform Enterprise for: $provider"
+            try {
+                $providerData = @{
+                    data = @{
+                        type = "registry-providers"
+                        attributes = @{
+                            name = ($provider)
+                            namespace = ($providerNamespace)
+                            "registry-name" = "private"
+                        }
+                    }
+                }
+                # TODO: Add Invoke-RestMethod to POST a new provider.
+            } catch {
+                Write-Error "Failed to publish to Terraform Enterprise: $_"
+                exit 1
+            }
+        }
+
         $versions = Invoke-RestMethod `
-            -Uri "$artifactoryQueryUri/$namespace/$provider" `
+            -Uri "$artifactoryQueryUri/$providerNamespace/$provider" `
             -Method GET `
             -Headers $artifactoryHeaders `
             -ContentType "application/json"
 
         foreach ($version in $versions.children.uri.Trim('/')) {
-            Write-Output "Found the following Terraform provider version: $version"
+            Write-Output "Found the following Terraform provider version in Artifactory: $version"
+
+            if ($tfeGetAllVersionsResponse.data.attributes.version.Contains($version)) {
+                # The version has been published to TFE, grab the SHA256SUMS upload URLs.
+                $versionResponse = ($tfeGetAllVersionsResponse.data | Where-Object { $_.attributes.version -eq $version })
+                $shasumsUploadUri = $versionResponse.links."shasums-upload"
+                $shasumsSigUploadUri = $versionResponse.links."shasums-sig-upload"
+
+                # Get a list of platforms published to the PMR for this version.
+                $tfeGetAllPlatformsUri = "$tfeGetAllVersionsUri/$version/platforms"
+                $tfeGetAllPlatformsResponse = Invoke-RestMethod `
+                    -Uri $tfeGetAllPlatformsUri `
+                    -Method GET `
+                    -Headers $tfeHeaders `
+                    -ContentType "application/vnd.api+json"
+            } else {
+                # Create a provider version with the TFE API.
+                Write-Output "Creating a private provider in Terraform Enterprise for: $provider"
+                try {
+                    $providerData = @{
+                        data = @{
+                            type = "registry-provider-versions"
+                            attributes = @{
+                                version = ($version)
+                                "key-id" = "34365D9472D7468F"
+                                "protocols" = ["5.0"]
+                            }
+                        }
+                    }
+                    # TODO: Add Invoke-RestMethod to POST a new provider version.
+                    # Capture the $response.data.links."shasums-upload" link.
+                } catch {
+                    Write-Error "Failed to publish to Terraform Enterprise: $_"
+                    exit 1
+                }
+            }
 
             $files = Invoke-RestMethod `
-                -Uri "$artifactoryQueryUri/$namespace/$provider/$version" `
+                -Uri "$artifactoryQueryUri/$providerNamespace/$provider/$version" `
                 -Method GET `
                 -Headers $artifactoryHeaders `
                 -ContentType "application/json"
 
             foreach ($file in $files.children.uri.Trim('/')) {
-                Write-Output "Found the following Terraform provider file: $file"
+                Write-Output "Found the following Terraform provider file in Artifactory: $file"
 
-                try {
+                # Extract product, version, os, and arch from the filename.
+                $fileNameSplit = $file -split '_'
+                $product = ($fileNameSplit[0] -split '-')[2] # terraform-provider-<product>
+                $version = $fileNameSplit[1]
+
+                if ($fileNameSplit[2] -like "SHA256SUMS*") {
+                  # Upload the signature files using $response.data.links."shasums-upload".
+                } else {
+                  $os = $fileNameSplit[2]
+                  $arch = $fileNameSplit[3]
+                }
+
+                if (
+                  $tfeGetAllPlatformsResponse.data.attributes.os.Contains($os) -and
+                  $tfeGetAllPlatformsResponse.data.attributes.arch.Contains($arch)
+                ) {
+                    # A platform for this OS and architecture has been published to TFE, grab the binary upload URL.
+                    $platformResponse = ($tfeGetAllPlatformsResponse.data | Where-Object { 
+                        $_.attributes.os -eq $os -and $_.attributes.arch -eq $arch 
+                    })
+                    $providerBinaryUploadUri = $platformResponse.links."provider-binary-upload"
+                } else {
+                    # Create a platform for this OS and architecture with the TFE API.
+                    Write-Output "Creating a provider platform in Terraform Enterprise for: $os_$arch"
+
+                    try {
+                        $providerData = @{
+                            data = @{
+                                type = "registry-provider-version-platforms"
+                                attributes = @{
+                                    os = ($os)
+                                    arch = ($arch)
+                                    shasum = "" # Get the SHASUM for the file.
+                                    filename = $file
+                                }
+                            }
+                        }
+                        # TODO: Add Invoke-RestMethod to POST a new provider platform.
+                        # Capture the $response.data.links."provider-binary-upload" link.
+                    } catch {
+                        Write-Error "Failed to publish to Terraform Enterprise: $_"
+                        exit 1
+                    }
+                }
+
+                # Stage the file for publishing to TFE.
+                if ($providerBinaryUploadUri) {
+                    Write-Output "$file has not been published to the registry, download from Artifactory."
+
                     if (Test-Path -Path "$tempFolderPath\$file" -PathType Leaf) {
                         Write-Output "$file already exists at $tempFolderPath, skipping download."
                     } else {
-                        Write-Output "Downloading $file to $tempFolderPath..."
-
                         $files = Invoke-RestMethod `
-                            -Uri "$artifactoryDownloadUri/$namespace/$provider/$version/$file" `
+                            -Uri "$artifactoryDownloadUri/$providerNamespace/$provider/$version/$file" `
                             -Method GET `
                             -Headers $artifactoryHeaders `
                             -OutFile "$tempFolderPath\$file"
                     }
 
+                    # Publish the file to the Private Module Registry in TFE.
                     try {
-                        $providerData = @{
-                            data = @{
-                                type = "registry-providers"
-                                attributes = @{
-                                    name = ($provider)
-                                    namespace = ($namespace)
-                                    "registry-name" = "private"
-                                }
-                            }
-                        }
+                        Invoke-RestMethod `
+                            -Uri $providerBinaryUploadUri `
+                            -Method PUT `
+                            -InFile "$tempFolderPath\$file"
                     } catch {
-                        Write-Output "Terraform provider already exists: ($provider)"
+                        Write-Error "Failed to publish to Terraform Enterprise: $_"
+                        exit 1
                     }
-                } catch {
-                    Write-Error "Failed to download $file. Error: $_"
+                } else {
+                    Write-Output "$file has already been published to the registry, skipping publication."
                 }
+
             }
         }
     }
