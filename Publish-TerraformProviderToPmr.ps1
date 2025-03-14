@@ -78,7 +78,7 @@ $terraformEnterpriseUrl = ($TerraformEnterpriseUrl.TrimEnd('/'))
 
 # Create the extraction directory.
 $tempFolderPath = Join-Path "$Env:USERPROFILE\Downloads" "TerraformProviders"
-New-Item -Type Directory -Path $tempFolderPath | Out-Null
+New-Item -Type Directory -Force -Path $tempFolderPath | Out-Null
 
 $artifactoryHeaders = @{
     "X-JFrog-Art-Api" = $ArtifactoryApiKey
