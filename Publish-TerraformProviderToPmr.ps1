@@ -328,15 +328,19 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                     }
                     default {
                         if ($file -like "*SHA256SUMS") {
-                            Write-Output "Found the SHA256SUMS file, publishing it to the PMR using this URL: $shasumsUploadUri"
-                            try {
-                                Invoke-RestMethod `
-                                    -Uri $shasumsUploadUri `
-                                    -Method PUT `
-                                    -InFile "$tempFolderPath\$file"
-                            } catch {
-                                Write-Error "Failed to publish to Terraform Enterprise: $_"
-                                exit 1
+                            if ($shasumsUploadUri) {
+                                Write-Output "Found the SHA256SUMS file, publishing it to the PMR using this URL: $shasumsUploadUri"
+                                try {
+                                    Invoke-RestMethod `
+                                        -Uri $shasumsUploadUri `
+                                        -Method PUT `
+                                        -InFile "$tempFolderPath\$file"
+                                } catch {
+                                    Write-Error "Failed to publish to Terraform Enterprise: $_"
+                                    exit 1
+                                }
+                            } else {
+                                Write-Output "The SHASUM file has already been uploaded, skipping..."
                             }
                         }
                         else {
