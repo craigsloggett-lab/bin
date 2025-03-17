@@ -271,6 +271,17 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                         } else {
                             # Create a platform for this OS and architecture with the TFE API.
                             Write-Output "Creating a provider platform in Terraform Enterprise for: $os $arch"
+                            Write-Output "$file has not been published to the registry, download from Artifactory."
+
+                            if (Test-Path -Path "$tempFolderPath\$file" -PathType Leaf) {
+                                Write-Output "$file already exists at $tempFolderPath, skipping download."
+                            } else {
+                                $files = Invoke-RestMethod `
+                                    -Uri "$artifactoryDownloadUri/$providerNamespace/$provider/$version/$file" `
+                                    -Method GET `
+                                    -Headers $artifactoryHeaders `
+                                    -OutFile "$tempFolderPath\$file"
+                            }
 
                             # Get the SHASUM
                             $shasum = (Get-FileHash -Algorithm SHA256 "$tempFolderPath\$file").Hashi.ToLower()
@@ -301,20 +312,6 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                                 Write-Error "Failed to publish to Terraform Enterprise: $_"
                                 exit 1
                             }
-                        }
-                        # Stage the file for publishing to TFE.
-                        if ($providerBinaryUploadUri) {
-                            Write-Output "$file has not been published to the registry, download from Artifactory."
-
-                            if (Test-Path -Path "$tempFolderPath\$file" -PathType Leaf) {
-                                Write-Output "$file already exists at $tempFolderPath, skipping download."
-                            } else {
-                                $files = Invoke-RestMethod `
-                                    -Uri "$artifactoryDownloadUri/$providerNamespace/$provider/$version/$file" `
-                                    -Method GET `
-                                    -Headers $artifactoryHeaders `
-                                    -OutFile "$tempFolderPath\$file"
-                            }
 
                             # Publish the file to the Private Module Registry in TFE.
                             try {
@@ -326,8 +323,6 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                                 Write-Error "Failed to publish to Terraform Enterprise: $_"
                                 exit 1
                             }
-                        } else {
-                            Write-Output "$file has already been published to the registry, skipping publication."
                         }
                     }
                     default {
