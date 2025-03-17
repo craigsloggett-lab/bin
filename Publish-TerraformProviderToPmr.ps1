@@ -249,9 +249,82 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                         }
                     }
                     ".zip" {
-                        Write-Output "Found the provider file, capturing the OS and Architecture for: $file"
+                        Write-Output "Found the provider file, capturing the OS and Architecture as: $fileNameSplit[2] and $fileNameSplit[3]"
                         $os = $fileNameSplit[2]
                         $arch = $fileNameSplit[3]
+
+                        if ($tfeRegistryProviderVersionPlatformsResponse) {
+                            if (
+                                $tfeRegistryProviderVersionPlatformsResponse.data.attributes.os.Contains($os) -and
+                                $tfeRegistryProviderVersionPlatformsResponse.data.attributes.arch.Contains($arch)
+                            ) {
+                                # A platform for this OS and architecture has been published to TFE, grab the binary upload URL.
+                                $platformResponse = ($tfeRegistryProviderVersionPlatformsResponse.data | Where-Object { 
+                                    $_.attributes.os -eq $os -and $_.attributes.arch -eq $arch 
+                                })
+                                $providerBinaryUploadUri = $platformResponse.links."provider-binary-upload"
+                            }
+                        } else {
+                            # Create a platform for this OS and architecture with the TFE API.
+                            Write-Output "Creating a provider platform in Terraform Enterprise for: $os_$arch"
+
+                            # Get the SHASUM
+                            $shasum = (Get-FileHash -Algorithm SHA256 $file).Hashi.ToLower()
+
+                            try {
+                                $providerVersionPlatformPayload = @{
+                                    data = @{
+                                        type = "registry-provider-version-platforms"
+                                        attributes = @{
+                                            os = $os
+                                            arch = $arch
+                                            shasum = $shasum
+                                            filename = $file
+                                        }
+                                    }
+                                } | ConvertTo-Json -Depth 10
+
+                                # Create the provider version platform.
+                                $providerPlatformResponse = Invoke-RestMethod `
+                                    -Uri $tfeRegistryProviderVersionPlatformsUri `
+                                    -Method POST `
+                                    -Headers $tfeHeaders `
+                                    -Body $providerVersionPlatformPayload `
+                                    -ContentType "application/vnd.api+json"
+
+                                $providerBinaryUploadUri = $providerPlatformResponse.data.links."provider-binary-upload"
+                            } catch {
+                                Write-Error "Failed to publish to Terraform Enterprise: $_"
+                                exit 1
+                            }
+                        }
+                        # Stage the file for publishing to TFE.
+                        if ($providerBinaryUploadUri) {
+                            Write-Output "$file has not been published to the registry, download from Artifactory."
+
+                            if (Test-Path -Path "$tempFolderPath\$file" -PathType Leaf) {
+                                Write-Output "$file already exists at $tempFolderPath, skipping download."
+                            } else {
+                                $files = Invoke-RestMethod `
+                                    -Uri "$artifactoryDownloadUri/$providerNamespace/$provider/$version/$file" `
+                                    -Method GET `
+                                    -Headers $artifactoryHeaders `
+                                    -OutFile "$tempFolderPath\$file"
+                            }
+
+                            # Publish the file to the Private Module Registry in TFE.
+                            try {
+                                Invoke-RestMethod `
+                                    -Uri $providerBinaryUploadUri `
+                                    -Method PUT `
+                                    -InFile "$tempFolderPath\$file"
+                            } catch {
+                                Write-Error "Failed to publish to Terraform Enterprise: $_"
+                                exit 1
+                            }
+                        } else {
+                            Write-Output "$file has already been published to the registry, skipping publication."
+                        }
                     }
                     default {
                         if ($file -like "*SHA256SUMS") {
@@ -270,80 +343,6 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                             Write-Output "Unknown file, skipping..."
                         }
                     }
-                }
-
-                if ($versionResponse) {
-                    if (
-                        $tfeRegistryProviderVersionPlatformsResponse.data.attributes.os.Contains($os) -and
-                        $tfeRegistryProviderVersionPlatformsResponse.data.attributes.arch.Contains($arch)
-                    ) {
-                        # A platform for this OS and architecture has been published to TFE, grab the binary upload URL.
-                        $platformResponse = ($tfeRegistryProviderVersionPlatformsResponse.data | Where-Object { 
-                            $_.attributes.os -eq $os -and $_.attributes.arch -eq $arch 
-                        })
-                        $providerBinaryUploadUri = $platformResponse.links."provider-binary-upload"
-                    }
-                } else {
-                    # Create a platform for this OS and architecture with the TFE API.
-                    Write-Output "Creating a provider platform in Terraform Enterprise for: $os_$arch"
-
-                    # Get the SHASUM
-                    $shasum = (Get-FileHash -Algorithm SHA256 $file).Hashi.ToLower()
-
-                    try {
-                        $providerVersionPlatformPayload = @{
-                            data = @{
-                                type = "registry-provider-version-platforms"
-                                attributes = @{
-                                    os = $os
-                                    arch = $arch
-                                    shasum = $shasum
-                                    filename = $file
-                                }
-                            }
-                        } | ConvertTo-Json -Depth 10
-
-                        # Create the provider version platform.
-                        $providerPlatformResponse = Invoke-RestMethod `
-                            -Uri $tfeRegistryProviderVersionPlatformsUri `
-                            -Method POST `
-                            -Headers $tfeHeaders `
-                            -Body $providerVersionPlatformPayload `
-                            -ContentType "application/vnd.api+json"
-
-                        $providerBinaryUploadUri = $providerPlatformResponse.data.links."provider-binary-upload"
-                    } catch {
-                        Write-Error "Failed to publish to Terraform Enterprise: $_"
-                        exit 1
-                    }
-                }
-
-                # Stage the file for publishing to TFE.
-                if ($providerBinaryUploadUri) {
-                    Write-Output "$file has not been published to the registry, download from Artifactory."
-
-                    if (Test-Path -Path "$tempFolderPath\$file" -PathType Leaf) {
-                        Write-Output "$file already exists at $tempFolderPath, skipping download."
-                    } else {
-                        $files = Invoke-RestMethod `
-                            -Uri "$artifactoryDownloadUri/$providerNamespace/$provider/$version/$file" `
-                            -Method GET `
-                            -Headers $artifactoryHeaders `
-                            -OutFile "$tempFolderPath\$file"
-                    }
-
-                    # Publish the file to the Private Module Registry in TFE.
-                    try {
-                        Invoke-RestMethod `
-                            -Uri $providerBinaryUploadUri `
-                            -Method PUT `
-                            -InFile "$tempFolderPath\$file"
-                    } catch {
-                        Write-Error "Failed to publish to Terraform Enterprise: $_"
-                        exit 1
-                    }
-                } else {
-                    Write-Output "$file has already been published to the registry, skipping publication."
                 }
             }
         }
