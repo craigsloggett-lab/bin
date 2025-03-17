@@ -254,8 +254,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                         $arch = $fileNameSplit[3]
                     }
                     default {
-                        # Typically the SHA256SUMS has no extension
-                        if ($filename -like "*SHA256SUMS") {
+                        if ($file -like "*SHA256SUMS") {
                             Write-Output "Found the SHA256SUMS file, publishing it to the PMR using this URL: $shasumsUploadUri"
                             try {
                                 Invoke-RestMethod `
