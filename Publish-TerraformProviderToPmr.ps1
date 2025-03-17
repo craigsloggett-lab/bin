@@ -230,9 +230,8 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                 Write-Output "Found the following Terraform provider file in Artifactory: $file"
 
                 $extension = [System.IO.Path]::GetExtension($file)
-                $baseName = Split-Path -Leaf $file
                 # Extract product, version, os, and arch from the filename.
-                $fileNameSplit = $baseName -split '_'
+                $fileNameSplit = $file -split '_'
                 $product = ($fileNameSplit[0] -split '-')[2] # terraform-provider-<product>
                 $version = $fileNameSplit[1]
 
@@ -255,7 +254,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                     }
                     ".zip" {
                         $os = $fileNameSplit[2]
-                        $arch = $fileNameSplit[3]
+                        $arch = ($fileNameSplit[3] -split '\.')[0] # Remove the extension.
                         Write-Output "Found the provider file, capturing the OS and Architecture as: $os and $arch"
 
                         if ($tfeRegistryProviderVersionPlatformsResponse.data) {
