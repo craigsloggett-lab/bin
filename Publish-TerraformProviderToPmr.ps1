@@ -335,27 +335,8 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                                         -Method PUT `
                                         -InFile "$tempFolderPath\$file"
                                 } catch {
-                                    Write-Output "Failed to upload, the link might be stale. Deleting version and retrying..."
-                                    try {
-                                        Invoke-RestMethod `
-                                            -Uri "$tfeRegistryProviderVersionsUri/$version" `
-                                            -Method DELETE `
-                                            -Headers $tfeHeaders `
-                                            -ContentType "application/vnd.api+json"
-                                    } catch {
-                                        Write-Error "Failed to publish to Terraform Enterprise: $_"
-                                        exit 1
-                                    }
-
-                                    try {
-                                        Invoke-RestMethod `
-                                            -Uri $shasumsUploadUri `
-                                            -Method PUT `
-                                            -InFile "$tempFolderPath\$file"
-                                    } catch {
-                                        Write-Error "Failed to publish to Terraform Enterprise: $_"
-                                        exit 1
-                                    }
+                                    Write-Error "Failed to publish to Terraform Enterprise: $_"
+                                    exit 1
                                 }
                             } else {
                                 Write-Output "The SHA256SUM file has already been uploaded, skipping..."
