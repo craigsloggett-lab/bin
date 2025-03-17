@@ -229,12 +229,13 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
             foreach ($file in $files.children.uri.Trim('/')) {
                 Write-Output "Found the following Terraform provider file in Artifactory: $file"
 
+                $extension = [System.IO.Path]::GetExtension($file)
+                $baseName = [System.IO.Path]::GetFileNameWithoutExtension($file)
                 # Extract product, version, os, and arch from the filename.
-                $fileNameSplit = $file -split '_'
+                $fileNameSplit = $baseName -split '_'
                 $product = ($fileNameSplit[0] -split '-')[2] # terraform-provider-<product>
                 $version = $fileNameSplit[1]
 
-                $extension = [System.IO.Path]::GetExtension($file)
                 switch ($extension) {
                     ".sig" {
                         if ($shasumsSigUploadUri) {
@@ -284,7 +285,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                             }
 
                             # Get the SHASUM
-                            $shasum = (Get-FileHash -Algorithm SHA256 "$tempFolderPath\$file").Hashi.ToLower()
+                            $shasum = (Get-FileHash -Algorithm SHA256 "$tempFolderPath\$file").Hash.ToLower()
 
                             try {
                                 $providerVersionPlatformPayload = @{
@@ -294,7 +295,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                                             os = $os
                                             arch = $arch
                                             shasum = $shasum
-                                            filename = "$tempFolderPath\$file"
+                                            filename = "$file"
                                         }
                                     }
                                 } | ConvertTo-Json -Depth 10
