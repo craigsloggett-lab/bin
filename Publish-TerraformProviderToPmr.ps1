@@ -257,7 +257,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                         $arch = $fileNameSplit[3]
                         Write-Output "Found the provider file, capturing the OS and Architecture as: $os and $arch"
 
-                        if ($tfeRegistryProviderVersionPlatformsResponse) {
+                        if ($tfeRegistryProviderVersionPlatformsResponse.data) {
                             if (
                                 $tfeRegistryProviderVersionPlatformsResponse.data.attributes.os.Contains($os) -and
                                 $tfeRegistryProviderVersionPlatformsResponse.data.attributes.arch.Contains($arch)
