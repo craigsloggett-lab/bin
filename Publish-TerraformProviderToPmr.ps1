@@ -230,7 +230,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                 Write-Output "Found the following Terraform provider file in Artifactory: $file"
 
                 $extension = [System.IO.Path]::GetExtension($file)
-                $baseName = [System.IO.Path]::GetFileNameWithoutExtension($file)
+                $baseName = Split-Path -Leaf $file
                 # Extract product, version, os, and arch from the filename.
                 $fileNameSplit = $baseName -split '_'
                 $product = ($fileNameSplit[0] -split '-')[2] # terraform-provider-<product>
@@ -336,9 +336,27 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                                         -Method PUT `
                                         -InFile "$tempFolderPath\$file"
                                 } catch {
-                                    Write-Error "Failed to publish to Terraform Enterprise: $_"
-                                    exit 1
-                                }
+                                    Write-Output "Failed to upload, the link might be stale. Deleting version and retrying..."
+                                    try {
+                                        Invoke-RestMethod `
+                                            -Uri "$tfeRegistryProviderVersionsUri/$version" `
+                                            -Method DELETE `
+                                            -Headers $tfeHeaders `
+                                            -ContentType "application/vnd.api+json"
+                                    } catch {
+                                        Write-Error "Failed to publish to Terraform Enterprise: $_"
+                                        exit 1
+                                    }
+
+                                    try {
+                                        Invoke-RestMethod `
+                                            -Uri $shasumsUploadUri `
+                                            -Method PUT `
+                                            -InFile "$tempFolderPath\$file"
+                                    } catch {
+                                        Write-Error "Failed to publish to Terraform Enterprise: $_"
+                                        exit 1
+                                    }
                             } else {
                                 Write-Output "The SHA256SUM file has already been uploaded, skipping..."
                             }
