@@ -237,15 +237,19 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                 $extension = [System.IO.Path]::GetExtension($file)
                 switch ($extension) {
                     ".sig" {
-                        Write-Output "Found the SHA256SUMS signature file, publishing it to the PMR using this URL: $shasumsSigUploadUri"
-                        try {
-                            Invoke-RestMethod `
-                                -Uri $shasumsSigUploadUri `
-                                -Method PUT `
-                                -InFile "$tempFolderPath\$file"
-                        } catch {
-                            Write-Error "Failed to publish to Terraform Enterprise: $_"
-                            exit 1
+                        if ($shasumsSigUploadUri) {
+                            Write-Output "Found the SHA256SUMS signature file, publishing it to the PMR using this URL: $shasumsSigUploadUri"
+                            try {
+                                Invoke-RestMethod `
+                                    -Uri $shasumsSigUploadUri `
+                                    -Method PUT `
+                                    -InFile "$tempFolderPath\$file"
+                            } catch {
+                                Write-Error "Failed to publish to Terraform Enterprise: $_"
+                                exit 1
+                            }
+                        } else {
+                            Write-Output "The SHA256SUMS signature file has already been uploaded, skipping..."
                         }
                     }
                     ".zip" {
@@ -340,7 +344,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                                     exit 1
                                 }
                             } else {
-                                Write-Output "The SHASUM file has already been uploaded, skipping..."
+                                Write-Output "The SHA256SUM file has already been uploaded, skipping..."
                             }
                         }
                         else {
