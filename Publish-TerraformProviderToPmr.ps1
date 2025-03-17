@@ -357,6 +357,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                                         Write-Error "Failed to publish to Terraform Enterprise: $_"
                                         exit 1
                                     }
+                                }
                             } else {
                                 Write-Output "The SHA256SUM file has already been uploaded, skipping..."
                             }
