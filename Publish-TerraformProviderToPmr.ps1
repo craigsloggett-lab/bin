@@ -249,9 +249,9 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                         }
                     }
                     ".zip" {
-                        Write-Output "Found the provider file, capturing the OS and Architecture as: $fileNameSplit[2] and $fileNameSplit[3]"
                         $os = $fileNameSplit[2]
                         $arch = $fileNameSplit[3]
+                        Write-Output "Found the provider file, capturing the OS and Architecture as: $os and $arch"
 
                         if ($tfeRegistryProviderVersionPlatformsResponse) {
                             if (
@@ -266,10 +266,10 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                             }
                         } else {
                             # Create a platform for this OS and architecture with the TFE API.
-                            Write-Output "Creating a provider platform in Terraform Enterprise for: $os_$arch"
+                            Write-Output "Creating a provider platform in Terraform Enterprise for: $os $arch"
 
                             # Get the SHASUM
-                            $shasum = (Get-FileHash -Algorithm SHA256 $file).Hashi.ToLower()
+                            $shasum = (Get-FileHash -Algorithm SHA256 "$tempFolderPath\$file").Hashi.ToLower()
 
                             try {
                                 $providerVersionPlatformPayload = @{
@@ -279,7 +279,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                                             os = $os
                                             arch = $arch
                                             shasum = $shasum
-                                            filename = $file
+                                            filename = "$tempFolderPath\$file"
                                         }
                                     }
                                 } | ConvertTo-Json -Depth 10
