@@ -198,7 +198,7 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                             type = "registry-provider-versions"
                             attributes = @{
                                 version = ($version)
-                                "key-id" = "34365D9472D7468F"
+                                "key-id" = "34365D9472D7468F" # TODO: Get the Key ID.
                                 protocols = @("5.0")
                             }
                         }
@@ -234,11 +234,43 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                 $product = ($fileNameSplit[0] -split '-')[2] # terraform-provider-<product>
                 $version = $fileNameSplit[1]
 
-                if ($fileNameSplit[2] -like "SHA256SUMS*") {
-                  # TODO: Upload the signature files using $response.data.links."shasums-upload".
-                } else {
-                  $os = $fileNameSplit[2]
-                  $arch = $fileNameSplit[3]
+                $extension = [System.IO.Path]::GetExtension($file)
+                switch ($extension) {
+                    ".sig" {
+                        Write-Output "Found the SHA256SUMS signature file, publishing it to the PMR using this URL: $shasumsSigUploadUri"
+                        try {
+                            Invoke-RestMethod `
+                                -Uri $shasumsSigUploadUri `
+                                -Method PUT `
+                                -InFile "$tempFolderPath\$file"
+                        } catch {
+                            Write-Error "Failed to publish to Terraform Enterprise: $_"
+                            exit 1
+                        }
+                    }
+                    ".zip" {
+                        Write-Output "Found the provider file, capturing the OS and Architecture for: $file"
+                        $os = $fileNameSplit[2]
+                        $arch = $fileNameSplit[3]
+                    }
+                    default {
+                        # Typically the SHA256SUMS has no extension
+                        if ($filename -like "*SHA256SUMS") {
+                            Write-Output "Found the SHA256SUMS file, publishing it to the PMR using this URL: $shasumsUploadUri"
+                            try {
+                                Invoke-RestMethod `
+                                    -Uri $shasumsUploadUri `
+                                    -Method PUT `
+                                    -InFile "$tempFolderPath\$file"
+                            } catch {
+                                Write-Error "Failed to publish to Terraform Enterprise: $_"
+                                exit 1
+                            }
+                        }
+                        else {
+                            Write-Output "Unknown file, skipping..."
+                        }
+                    }
                 }
 
                 if ($versionResponse) {
@@ -256,14 +288,17 @@ foreach ($providerNamespace in $providerNamespaces.children.uri.Trim('/')) {
                     # Create a platform for this OS and architecture with the TFE API.
                     Write-Output "Creating a provider platform in Terraform Enterprise for: $os_$arch"
 
+                    # Get the SHASUM
+                    $shasum = (Get-FileHash -Algorithm SHA256 $file).Hashi.ToLower()
+
                     try {
                         $providerVersionPlatformPayload = @{
                             data = @{
                                 type = "registry-provider-version-platforms"
                                 attributes = @{
-                                    os = ($os)
-                                    arch = ($arch)
-                                    shasum = "11111" # TODO: Get the SHASUM for the file.
+                                    os = $os
+                                    arch = $arch
+                                    shasum = $shasum
                                     filename = $file
                                 }
                             }
