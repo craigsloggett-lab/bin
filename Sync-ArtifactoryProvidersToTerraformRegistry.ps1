@@ -28,11 +28,11 @@ function Sync-ArtifactoryToTFE {
     param (
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$ArtifactoryApiUrl
+        [string]$ArtifactoryApiUrl,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$ArtifactoryItemPropertiesApiUrl
+        [string]$ArtifactoryItemPropertiesApiUrl,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
@@ -40,19 +40,19 @@ function Sync-ArtifactoryToTFE {
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$ArtifactoryRepositoryKey
+        [string]$ArtifactoryRepositoryKey,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$ArtifactoryRootItemPath
+        [string]$ArtifactoryRootItemPath,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$TerraformEnterpriseApiUrl
+        [string]$TerraformEnterpriseApiUrl,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$TerraformEnterpriseOrganization
+        [string]$TerraformEnterpriseOrganization,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
