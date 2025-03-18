@@ -130,7 +130,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
                 [Parameter(Mandatory = $true)]
                 [ValidateNotNullOrEmpty()]
-                [string]$ArtifactoryUri
+                [string]$ArtifactoryUri,
 
                 [Parameter(Mandatory = $false)]
                 [string]$DownloadPath
