@@ -216,6 +216,16 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             process {
                 Write-Verbose "Found the following provider: $Providername"
                 Write-Verbose "Checking if the provider already exists..."
+                try {
+                    Write-Verbose "Listing all of the Terraform providers published in the registry..."
+                    $response = Invoke-RestMethod -Headers $headers -Method GET -Uri $uri
+                }
+                catch {
+                    Write-Error "Failed to query Artifactory with the following error: $_"
+                    return
+                }
+
+                $response.data.attributes.name
             }
         }
     }
