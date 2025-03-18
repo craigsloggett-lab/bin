@@ -163,7 +163,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             param (
                 [Parameter(Mandatory = $true)]
                 [ValidateNotNullOrEmpty()]
-                [string]$ProviderFileFullPath,
+                [string]$ProviderFileFullPath
             )
             begin {
                 $filename  = Split-Path $ProviderFileFullPath -Leaf
@@ -175,7 +175,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 if ($extension -like '.zip') {
                     $os        = $filename.Split('_')[2]
                     $arch      = ($filename.Split('_')[3]).Replace($extension, '') # Drop the extension.
-                    $sha256sum = (Get-FileHash -Algorithm SHA256 "$filename").Hash.ToLower()
+                    $sha256sum = (Get-FileHash -Algorithm SHA256 "$ProviderFileFullPath").Hash.ToLower()
                 }
                 $providerFileData = @{
                     Namespace = 'hashicorp' # Only the HashiCorp namespace is valid at this time.
@@ -189,6 +189,33 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 }
 
                 $providerFileData
+            }
+        }
+
+        function New-TerraformRegistryProvider {
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$TerraformEnterpriseContext,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderNamespace,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderName
+            )
+            begin {
+                $headers           = $TerraformEnterpriseContext.Headers
+                $providersEndpoint = ("/organizations/{0}/registry-providers" -f $TerraformEnterpriseContext.Organization)
+                $uri               = ("{0}/{1}" -f $TerraformEnterpriseContext.ApiUrl,
+                                                   $providersEndpoint.TrimStart('/')).TrimEnd('/')
+            }
+            process {
+                Write-Verbose "Found the following provider: $Providername"
+                Write-Verbose "Checking if the provider already exists..."
             }
         }
     }
@@ -214,13 +241,26 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             Invoke-ArtifactoryDownload @HashArguments
         }
 
-        # Create the necessary Terraform registry objects in preparation for publication.
+        # Capture provider data from the downloaded files.
+        $providerData = @()
+
         Get-ChildItem $downloadPath | ForEach-Object {
             $HashArguments = @{
-                $ProviderFileFullPath = $_.FullName
+                ProviderFileFullPath = $_.FullName
             }
 
-            Invoke-ParseProviderFileFullPath @HashArguments
+            $providerData += Invoke-ParseProviderFileFullPath @HashArguments
+        }
+
+        # Create the necessary Terraform registry objects in preparation for publication.
+        $providerData.Name | Get-Unique | ForEach-Object {
+            $HashArguments = @{
+                TerraformEnterpriseContext = $TerraformEnterpriseContext
+                ProviderNamespace          = "hashicorp"
+                ProviderName               = $_
+            }
+
+            New-TerraformRegistryProvider @HashArguments
         }
     }
 }
