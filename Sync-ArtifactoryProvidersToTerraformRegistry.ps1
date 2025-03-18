@@ -197,7 +197,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             param (
                 [Parameter(Mandatory = $true)]
                 [ValidateNotNullOrEmpty()]
-                [string]$TerraformEnterpriseContext,
+                [hashtable]$TerraformEnterpriseContext,
 
                 [Parameter(Mandatory = $true)]
                 [ValidateNotNullOrEmpty()]
