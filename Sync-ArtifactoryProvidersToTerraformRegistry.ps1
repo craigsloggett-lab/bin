@@ -85,7 +85,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 [ValidateNotNullOrEmpty()]
                 [hashtable]$ArtifactoryContext,
 
-                [Parameter(Mandatory = $true)]
+                [Parameter(Mandatory = $false)]
                 [string]$CurrentPath
             )
             begin {
@@ -96,8 +96,6 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                                                  $CurrentPath).TrimEnd('/')
             }
             process {
-                # Test if an Artifactory path is a folder, returns True if it is.
-                # ((Invoke-RestMethod -Uri "$uri" -Method GET -Headers $headers -ContentType "application/json").children)
                 Write-Verbose "Querying Artifactory path: $CurrentPath"
 
                 try {
@@ -107,6 +105,20 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                     Write-Error "Failed to query Artifactory with the following error: $_"
                     return
                 }
+
+                if ($response.children) {
+                    Write-Verbose "Determined $CurrentPath is a folder."
+                    # $CurrentPath is a folder because it has children.
+                    foreach ($child in $response.children) {
+                        Write-Verbose ("Found a child item at the following relative path: " -f $child.uri)
+                        # Iterate over each child path to get additional items.
+                        Get-ArtifactoryRepositoryItems -ArtifactoryContext $ArtifactoryContext -CurrentPath ("${0}/${1}" -f $uri, ($child.uri).TrimStart('/'))
+                    }
+                } else {
+                    Write-Verbose "Determined $CurrentPath is a file."
+                    # $CurrentPath is not a folder because it has no children.
+                }
+
                 Write-Verbose "..."
             }
         }
