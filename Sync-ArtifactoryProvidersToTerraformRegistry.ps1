@@ -226,6 +226,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 }
 
                 if ($response.data.attributes.name -like $ProviderName) {
+                    # Process Terraform providers, this condition is if they exist in the registry so no need to create them.
 
                 }
             }
