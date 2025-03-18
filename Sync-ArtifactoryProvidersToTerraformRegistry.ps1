@@ -15,10 +15,10 @@ function Get-ArtifactoryRepositoryItems {
         [Parameter(Mandatory = $true)]
         [hashtable]$ArtifactoryContext
     )
-    begin (
+    begin {
         $headers = $ArtifactoryContext.Headers
         $uri = "$ArtifactoryContext.ItemPropertiesApiUrl/$ArtifactoryContext.RepositoryKey/$ArtifactoryContext.RootItemPath"
-    )
+    }
     process {
     }
 }
