@@ -78,7 +78,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             }
         }
 
-        function Get-ArtifactoryRepositoryItems {
+        function Get-ArtifactoryProviderFilePaths {
             [CmdletBinding()]
             param (
                 [Parameter(Mandatory = $true)]
@@ -109,16 +109,69 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 if ($response.children) {
                     foreach ($child in $response.children) {
                         Write-Verbose ("Found a child item at the following relative path: {0}" -f $child.uri)
-                        Get-ArtifactoryRepositoryItems -ArtifactoryContext $ArtifactoryContext -CurrentPath ("{0}/{1}" -f $CurrentPath, $child.uri.TrimStart('/'))
+                        Get-ArtifactoryProviderFilePaths -ArtifactoryContext $ArtifactoryContext -CurrentPath ("{0}/{1}" -f $CurrentPath, $child.uri.TrimStart('/'))
                     }
                 } else {
                     Write-Verbose ("Determined the following is a file: {0}" -f $CurrentPath)
                     $filePaths += $uri
                 }
+
+                # Return an array of Artifactory URIs to the files found after traversing the repository.
+                $filePaths
+            }
+        }
+
+        function Invoke-ArtifactoryDownload {
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [hashtable]$ArtifactoryContext,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ArtifactoryUri
+
+                [Parameter(Mandatory = $false)]
+                [string]$DownloadPath
+            )
+            begin {
+                $headers  = $ArtifactoryContext.Headers
+                $uri      = $ArtifactoryUri.Replace($ArtifactoryContext.ItemPropertiesApiUrl, $ArtifactoryContext.ApiUrl)
+                $filename = $uri.Split('/')[-1] # Assumes the filename is after the final '/' in the URL.
+
+                if (!$DownloadPath) { $DownloadPath = Join-Path "$Env:USERPROFILE\Downloads" "TerraformProviders" }
+            }
+            process {
+                Write-Verbose "Creating the following download destination directory: $DownloadPath"
+                New-Item -Type Directory -Force -Path $DownloadPath | Out-Null
+
+                Write-Verbose "Invoke Artifactory download for file: $uri"
+                try {
+                    $response = Invoke-RestMethod -Headers $headers -Method GET -Uri $uri -OutFile "$DownloadPath\$filename"
+                }
+                catch {
+                    Write-Error "Failed to query Artifactory with the following error: $_"
+                    return
+                }
             }
         }
     }
     process {
-        Get-ArtifactoryRepositoryItems -ArtifactoryContext $ArtifactoryContext -CurrentPath "terraform-providers"
+        $HashArguments = @{
+            ArtifactoryContext = $ArtifactoryContext
+            CurrentPath        = "terraform-providers"
+        }
+
+        $artifactoryProviderFilePaths = Get-ArtifactoryProviderFilePaths @HashArguments
+
+        foreach ($uri in $artifactoryProviderFilePaths) {
+            $HashArguments = @{
+                ArtifactoryContext = $ArtifactoryContext
+                ArtifactoryUri     = $uri
+            }
+
+            Invoke-ArtifactoryDownload @HashArguments
+        }
     }
 }
