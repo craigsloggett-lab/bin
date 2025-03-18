@@ -146,13 +146,17 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 Write-Verbose "Creating the following download destination directory: $DownloadPath"
                 New-Item -Type Directory -Force -Path $DownloadPath | Out-Null
 
-                Write-Verbose "Invoke Artifactory download for file: $uri"
-                try {
-                    $response = Invoke-RestMethod -Headers $headers -Method GET -Uri $uri -OutFile "$DownloadPath\$filename"
-                }
-                catch {
-                    Write-Error "Failed to query Artifactory with the following error: $_"
-                    return
+                if (!Test-Path -Path "$DownloadPath\$filename" -PathType Leaf) {
+                    try {
+                        Write-Verbose "Invoke Artifactory download for file: $uri"
+                        $response = Invoke-RestMethod -Headers $headers -Method GET -Uri $uri -OutFile "$DownloadPath\$filename"
+                    }
+                    catch {
+                        Write-Error "Failed to query Artifactory with the following error: $_"
+                        return
+                    }
+                } else {
+                    Write-Verbose "Found $DownloadPath\$filename, skipping download..."
                 }
             }
         }
