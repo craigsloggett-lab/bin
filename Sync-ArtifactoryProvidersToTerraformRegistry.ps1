@@ -74,7 +74,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             Organization = $TerraformEnterpriseOrganization
     
             Headers = @{
-                'Authorization' = "Bearer $TerraformEnterpriseBearerToken"
+                Authorization = "Bearer $TerraformEnterpriseBearerToken"
             }
         }
 
@@ -132,15 +132,13 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 [ValidateNotNullOrEmpty()]
                 [string]$ArtifactoryUri,
 
-                [Parameter(Mandatory = $false)]
+                [Parameter(Mandatory = $true)]
                 [string]$DownloadPath
             )
             begin {
                 $headers  = $ArtifactoryContext.Headers
                 $uri      = $ArtifactoryUri.Replace($ArtifactoryContext.ItemPropertiesApiUrl, $ArtifactoryContext.ApiUrl)
                 $filename = $uri.Split('/')[-1] # Assumes the filename is after the final '/' in the URL.
-
-                if (!$DownloadPath) { $DownloadPath = Join-Path "$Env:USERPROFILE\Downloads" "TerraformProviders" }
             }
             process {
                 New-Item -Type Directory -Force -Path $DownloadPath | Out-Null
@@ -159,8 +157,43 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 }
             }
         }
+
+        function Invoke-ParseProviderFileFullPath {
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderFileFullPath,
+            )
+            begin {
+                $filename  = Split-Path $ProviderFileFullPath -Leaf
+                $extension = [System.IO.Path]::GetExtension($filename)
+                $name      = ($filename.Split('_')[0]).Split('-')[2] # terraform-provider-<name>
+                $version   = $filename.Split('_')[1]
+            }
+            process {
+                if ($extension -like '.zip') {
+                    $os        = $filename.Split('_')[2]
+                    $arch      = ($filename.Split('_')[3]).Replace($extension, '') # Drop the extension.
+                    $sha256sum = (Get-FileHash -Algorithm SHA256 "$filename").Hash.ToLower()
+                }
+                $providerFileData = @{
+                    Namespace = 'hashicorp' # Only the HashiCorp namespace is valid at this time.
+                    Name = $name
+                    Version = $version
+                    OS = $os
+                    Arch = $arch
+                    SHA256SUM = $sha256sum
+                    Filename = $filename
+                    KeyID = '34365D9472D7468F' # TODO: Get the Key ID.
+                }
+
+                $providerFileData
+            }
+        }
     }
     process {
+        # Discover Terraform provider files in Artifactory.
         $HashArguments = @{
             ArtifactoryContext = $ArtifactoryContext
             CurrentPath        = "terraform-providers"
@@ -168,13 +201,26 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
         $artifactoryProviderFilePaths = Get-ArtifactoryProviderFilePaths @HashArguments
 
+        # Download Terraform provider files locally.
+        $downloadPath = Join-Path "$Env:USERPROFILE\Downloads" "TerraformProviders"
+
         foreach ($uri in $artifactoryProviderFilePaths) {
             $HashArguments = @{
                 ArtifactoryContext = $ArtifactoryContext
                 ArtifactoryUri     = $uri
+                DownloadPath       = $downloadPath
             }
 
             Invoke-ArtifactoryDownload @HashArguments
+        }
+
+        # Create the necessary Terraform registry objects in preparation for publication.
+        Get-ChildItem $downloadPath | ForEach-Object {
+            $HashArguments = @{
+                $ProviderFileFullPath = $_.FullName
+            }
+
+            Invoke-ParseProviderFileFullPath @HashArguments
         }
     }
 }
