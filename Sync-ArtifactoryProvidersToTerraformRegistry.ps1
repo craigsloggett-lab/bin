@@ -225,7 +225,9 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                     return
                 }
 
-                $response.data.attributes.name
+                if ($response.data.attributes.name -like $ProviderName) {
+
+                }
             }
         }
     }
