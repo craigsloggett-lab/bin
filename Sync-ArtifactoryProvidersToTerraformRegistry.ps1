@@ -97,7 +97,6 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             }
             process {
                 Write-Verbose "Querying Artifactory path: $uri"
-
                 try {
                     $response = Invoke-RestMethod -Headers $headers -Method GET -Uri $uri
                 }
@@ -106,22 +105,20 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                     return
                 }
 
+                $filePaths = @()
                 if ($response.children) {
                     foreach ($child in $response.children) {
-                        Write-Verbose ("Found a child item at the following relative path: " -f $child.uri)
-                        Get-ArtifactoryRepositoryItems -ArtifactoryContext $ArtifactoryContext -CurrentPath ("{0}/{1}" -f $CurrentPath, ($child.uri).TrimStart('/'))
+                        Write-Verbose ("Found a child item at the following relative path: {0}" -f $child.uri)
+                        Get-ArtifactoryRepositoryItems -ArtifactoryContext $ArtifactoryContext -CurrentPath ("{0}/{1}" -f $CurrentPath, $child.uri.TrimStart('/'))
                     }
                 } else {
-                    Write-Verbose "Determined $CurrentPath is a file."
-                    # $CurrentPath is not a folder because it has no children.
+                    Write-Verbose ("Determined the following is a file: {0}" -f $CurrentPath)
+                    $filePaths += $uri
                 }
-
-                Write-Verbose "..."
             }
         }
     }
     process {
-        Write-Verbose "..."
-        (Get-ArtifactoryRepositoryItems -ArtifactoryContext $ArtifactoryContext)
+        Get-ArtifactoryRepositoryItems -ArtifactoryContext $ArtifactoryContext -CurrentPath "terraform-providers"
     }
 }
