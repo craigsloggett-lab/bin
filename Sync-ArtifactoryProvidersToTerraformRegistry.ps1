@@ -397,7 +397,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                     return
                 }
 
-                $response
+                $response.data
             }
         }
     }
@@ -476,7 +476,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             }
         }
 
-        # Create the necessary Terraform registry objects in preparation for publication.
+        # Create a provider in the Terraform registry if it hasn't been created yet.
         $providerFilesData.Name | Get-Unique | ForEach-Object {
             if (!$publishedProvidersData.$_) {
                 Write-Verbose "The following provider has not been published yet: $_"
@@ -492,6 +492,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             }
         }
 
+        # Create a provider version in the Terraform registry if it hasn't been created yet.
         $providerFilesData | ForEach-Object {
             $providerName         = $_.Name
             $providerVersion      = $_.Version
