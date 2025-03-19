@@ -180,15 +180,16 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                     $sha256sum = (Get-FileHash -Algorithm SHA256 "$ProviderFileFullPath").Hash.ToLower()
                 }
                 $providerFileData = @{
-                    Namespace    = $TerraformEnterpriseContext.Organization
-                    ProviderName = $providerName
-                    Version      = $version
-                    OS           = $os
                     Arch         = $arch
-                    SHA256SUM    = $sha256sum
-                    Filename     = $filename
-                    KeyID        = '34365D9472D7468F' # TODO: Get the Key ID.
                     Extension    = $extension
+                    Filename     = $filename
+                    FullPath     = $ProviderFileFullPath
+                    KeyID        = '34365D9472D7468F' # TODO: Get the Key ID.
+                    Namespace    = $TerraformEnterpriseContext.Organization
+                    OS           = $os
+                    ProviderName = $providerName
+                    SHA256SUM    = $sha256sum
+                    Version      = $version
                 }
 
                 $providerFileData
@@ -470,6 +471,37 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 $response.data
             }
         }
+
+        function Publish-TerraformProviderFile {
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [hashtable]$TerraformEnterpriseContext,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderFileUploadUrl,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderFileFullPath
+            )
+            begin {
+                $headers = $TerraformEnterpriseContext.Headers
+                $uri     = $ProviderFileUploadUrl
+            }
+            process {
+                try {
+                    Write-Verbose "Posting to the Terraform registry: $uri"
+                    $response = Invoke-RestMethod -Headers $headers -Method PUT -Uri $uri -InFile $ProviderFileFullPath
+                }
+                catch {
+                    Write-Error "Failed to post to the Terraform registry: $_"
+                    return
+                }
+            }
+        }
     }
     process {
         # Discover Terraform provider files in Artifactory.
@@ -563,8 +595,8 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
         }
 
         $providerFilesData | ForEach-Object {
-            # Create a provider version in the Terraform registry if it hasn't been created yet.
             if (!$publishedProvidersData.($_.ProviderName).($_.Version)) {
+                # Create a provider version in the Terraform registry.
                 $HashArguments = @{
                     TerraformEnterpriseContext = $TerraformEnterpriseContext
                     ProviderNamespace          = $TerraformEnterpriseContext.Organization
@@ -592,6 +624,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                         }
 
                     if (!$platform) {
+                        # Create a provider version platform in the Terraform registry.
                         $HashArguments = @{
                             TerraformEnterpriseContext = $TerraformEnterpriseContext
                             ProviderNamespace          = $providerFileData.Namespace
@@ -607,14 +640,33 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
                         # Append the new platform record so next time we know it’s published
                         $publishedProvidersData.$($providerFileData.ProviderName).$($providerFileData.Version).platforms += $response
+
+                        # Grab the binary upload URL.
+                        $providerFileUploadUrl = $response.links.'provider-binary-upload'
                     }
+
                 }
                 '.sig' {
-                  Write-Verbose "Found a .sig file!"
+                    # Grab the SHA256SUMS signature file upload URL from the version.
+                    $version = $publishedProvidersData.$($providerFileData.ProviderName).$($providerFileData.Version)
+                    $providerFileUploadUrl = $version.links.'shasums-sig-upload'
                 }
                 default {
-                  Write-Verbose ("Found a SHA256SUMS file? --> {0}" -f $providerFileData.Filename)
+                    # Grab the SHA256SUMS file upload URL from the version.
+                    $version = $publishedProvidersData.$($providerFileData.ProviderName).$($providerFileData.Version)
+                    $providerFileUploadUrl = $version.links.'shasums-upload'
                 }
+            }
+
+            if $($providerFileUploadUrl) {
+                # Publish the provider file.
+                $HashArguments = @{
+                    TerraformEnterpriseContext = $TerraformEnterpriseContext
+                    ProviderFileUploadUrl      = $providerFileUploadUrl
+                    ProviderFileFullPath       = $_.FullPath
+                }
+
+                Publish-TerraformProviderFile @HashArguments
             }
         }
     }
