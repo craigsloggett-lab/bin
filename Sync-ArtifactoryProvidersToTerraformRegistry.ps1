@@ -180,15 +180,15 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                     $sha256sum = (Get-FileHash -Algorithm SHA256 "$ProviderFileFullPath").Hash.ToLower()
                 }
                 $providerFileData = @{
-                    Namespace = 'hashicorp' # Only the HashiCorp namespace is valid at this time.
-                    Name      = $name
-                    Version   = $version
-                    OS        = $os
-                    Arch      = $arch
-                    SHA256SUM = $sha256sum
-                    Filename  = $filename
-                    KeyID     = '34365D9472D7468F' # TODO: Get the Key ID.
-                    Extension = $extension
+                    Namespace    = $TerraformEnterpriseContext.Organization
+                    ProviderName = $name
+                    Version      = $version
+                    OS           = $os
+                    Arch         = $arch
+                    SHA256SUM    = $sha256sum
+                    Filename     = $filename
+                    KeyID        = '34365D9472D7468F' # TODO: Get the Key ID.
+                    Extension    = $extension
                 }
 
                 $providerFileData
@@ -591,7 +591,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                   Write-Verbose "Found a .sig file!"
                 }
                 default {
-                  Write-Verbose ("Found a SHA256SUMS file? --> {0}" -f $providerFileData.Extension)
+                  Write-Verbose ("Found a SHA256SUMS file? --> {0}" -f $providerFileData.Filename)
                 }
             }
         }
