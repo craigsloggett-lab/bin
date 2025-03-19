@@ -371,26 +371,30 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
         # Start with a list of providers.
         (Get-TerraformRegistryProviderNames @HashArguments) | ForEach-Object {
-            # Next is a list of versions published for a given provider.
+            $providerName = $_
+            $publishedProvidersData.Add($providerName, @{})
+
             $HashArguments = @{
                 TerraformEnterpriseContext = $TerraformEnterpriseContext
-                ProviderName               = $_
+                ProviderName               = $providerName
             }
             
+            # Next is a list of versions published for a given provider.
             (Get-TerraformRegistryProviderVersions @HashArguments) | ForEach-Object {
-                # Last is a hashtable of published platform details for a given version.
+                $providerVersion = $_
+                $publishedProvidersData.$providerName.Add($providerVersion, @{})
+
                 $HashArguments = @{
                     TerraformEnterpriseContext = $TerraformEnterpriseContext
-                    ProviderName               = @HashArguments.ProviderName
-                    ProviderVersion            = $_
+                    ProviderName               = $providerName
+                    ProviderVersion            = $providerVersion
                 }
                 
-                # Populate a hashtable with the published providers, their versions, and the associated platform details.
-                $publishedProvidersData.Add(@HashArguments.ProviderName, @{ 
-                  versions = @{
-                    $_ = Get-TerraformRegistryProviderVersionPlatforms @HashArguments
-                  }
-                }) 
+                # Last is a list of platforms published for a given version of a provider.
+                (Get-TerraformRegistryProviderVersionPlatforms @HashArguments) | ForEach-Object {
+                    # Populate a hashtable with the published providers, their versions, and the associated platform details.
+                    #$publishedProvidersData.$providerName.$providerVersion.Add(, @{})
+                }
             }
         }
 
