@@ -658,7 +658,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 }
             }
 
-            if $($providerFileUploadUrl) {
+            if ($providerFileUploadUrl) {
                 # Publish the provider file.
                 $HashArguments = @{
                     TerraformEnterpriseContext = $TerraformEnterpriseContext
