@@ -386,8 +386,8 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
                 if ($_.attributes.'shasums-uploaded' -like 'False') {
                     $publishedProvidersData.$providerName.$providerVersion.Add('links', @{
-                        'shasums-upload'     = $_.links."shasums-upload"
-                        'shasums-sig-upload' = $_.links."shasums-sig-upload"
+                        'shasums-upload'     = $_.links.'shasums-upload'
+                        'shasums-sig-upload' = $_.links.'shasums-sig-upload'
                     })
                 }
 
