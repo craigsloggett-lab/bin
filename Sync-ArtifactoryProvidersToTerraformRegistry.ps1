@@ -248,7 +248,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                     return
                 }
 
-                $response.data.attributes.version
+                $response
             }
         }
 
@@ -381,8 +381,13 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             
             # Next is a list of versions published for a given provider.
             (Get-TerraformRegistryProviderVersions @HashArguments) | ForEach-Object {
-                $providerVersion = $_
+                $providerVersion = $_.data.attributes.version
                 $publishedProvidersData.$providerName.Add($providerVersion, @{})
+
+                $publishedProvidersData.$providerName.$providerVersion.Add('links', @{
+                    'shasums-download'     = $_.data.links."shasums-download"
+                    'shasums-sig-download' = $_.data.links."shasums-sig-download"
+                })
 
                 $HashArguments = @{
                     TerraformEnterpriseContext = $TerraformEnterpriseContext
