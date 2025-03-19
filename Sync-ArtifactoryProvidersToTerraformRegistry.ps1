@@ -252,6 +252,43 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             }
         }
 
+        function Get-TerraformRegistryProviderVersionPlatforms {
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [hashtable]$TerraformEnterpriseContext,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderName,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderVersion
+            )
+            begin {
+                $headers           = $TerraformEnterpriseContext.Headers
+                $platformsEndpoint = ("/organizations/{0}/registry-providers/private/{0}/{1}/versions/{2}/platforms" -f $TerraformEnterpriseContext.Organization,
+                                                                                                                        $ProviderName,
+                                                                                                                        $ProviderVersion)
+                $uri               = ("{0}/{1}" -f $TerraformEnterpriseContext.ApiUrl,
+                                                   $platformsEndpoint.TrimStart('/')).TrimEnd('/')
+            }
+            process {
+                try {
+                    Write-Verbose "Querying the Terraform registry: $uri"
+                    $response = Invoke-RestMethod -Headers $headers -Method GET -Uri $uri
+                }
+                catch {
+                    Write-Error "Failed to query the Terraform registry: $_"
+                    return
+                }
+
+                $response.data
+            }
+        }
+
         function New-TerraformRegistryProvider {
             [CmdletBinding()]
             param (
@@ -325,24 +362,36 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             $providerFilesData += Invoke-ParseProviderFileFullPath @HashArguments
         }
 
-        # Query the Terraform registry for a list of providers published.
+        $publishedProvidersData = @{}
+
+        # Query the Terraform registry for a list of providers, their versions, and the platforms published.
         $HashArguments = @{
             TerraformEnterpriseContext = $TerraformEnterpriseContext
         }
 
-        $publishedProvidersData = ${}
-        $publishedProviderNames = Get-TerraformRegistryProviderNames @HashArguments 
-
-        # Query the Terraform registry for a list of versions of providers published.
-        $publishedProviderNames | ForEach-Object {
+        # Start with a list of providers.
+        (Get-TerraformRegistryProviderNames @HashArguments) | ForEach-Object {
+            # Next is a list of versions published for a given provider.
             $HashArguments = @{
                 TerraformEnterpriseContext = $TerraformEnterpriseContext
                 ProviderName               = $_
             }
             
-            $publishedProviderVersions = Get-TerraformRegistryProviderVersions @HashArguments
-
-            $publishedProvidersData.Add($_, @{ versions = $publishedProviderVersions }) 
+            (Get-TerraformRegistryProviderVersions @HashArguments) | ForEach-Object {
+                # Last is a hashtable of published platform details for a given version.
+                $HashArguments = @{
+                    TerraformEnterpriseContext = $TerraformEnterpriseContext
+                    ProviderName               = @HashArguments.ProviderName
+                    ProviderVersion            = $_
+                }
+                
+                # Populate a hashtable with the published providers, their versions, and the associated platform details.
+                $publishedProvidersData.Add(@HashArguments.ProviderName, @{ 
+                  versions = @{
+                    $_ = Get-TerraformRegistryProviderVersionPlatforms @HashArguments
+                  }
+                }) 
+            }
         }
 
         # Create the necessary Terraform registry objects in preparation for publication.
