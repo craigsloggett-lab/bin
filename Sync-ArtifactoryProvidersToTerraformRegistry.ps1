@@ -180,13 +180,13 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 }
                 $providerFileData = @{
                     Namespace = 'hashicorp' # Only the HashiCorp namespace is valid at this time.
-                    Name = $name
-                    Version = $version
-                    OS = $os
-                    Arch = $arch
+                    Name      = $name
+                    Version   = $version
+                    OS        = $os
+                    Arch      = $arch
                     SHA256SUM = $sha256sum
-                    Filename = $filename
-                    KeyID = '34365D9472D7468F' # TODO: Get the Key ID.
+                    Filename  = $filename
+                    KeyID     = '34365D9472D7468F' # TODO: Get the Key ID.
                     Extension = $extension
                 }
 
@@ -478,6 +478,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
         # Create the necessary Terraform registry objects in preparation for publication.
         $providerFilesData.Name | Get-Unique | ForEach-Object {
             if (!$publishedProvidersData.$_) {
+                Write-Verbose "The following provider has not been published yet: $_"
                 $HashArguments = @{
                     TerraformEnterpriseContext = $TerraformEnterpriseContext
                     ProviderNamespace          = $TerraformEnterpriseContext.Organization
@@ -485,6 +486,31 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 }
 
                 New-TerraformRegistryProvider @HashArguments
+
+                $publishedProvidersData.Add($_, @{})
+            }
+        }
+
+        $providerFilesData | ForEach-Object {
+            $providerName         = $_.Name
+            $providerVersion      = $_.Version
+            $providerVersionKeyID = $_.KeyID
+
+            if (!$publishedProvidersData.$providerName.$providerVersion) {
+                $HashArguments = @{
+                    TerraformEnterpriseContext = $TerraformEnterpriseContext
+                    ProviderNamespace          = $TerraformEnterpriseContext.Organization
+                    ProviderName               = $providerName
+                    ProviderVersion            = $providerVersion
+                    ProviderVersionKeyID       = $_.KeyID
+                }
+
+                $response = New-TerraformRegistryProviderVersion @HashArguments
+
+                $publishedProvidersData.$providerName.Add($providerVersion, @{
+                    links     = $response.links
+                    platforms = @()
+                })
             }
         }
     }
