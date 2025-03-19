@@ -187,6 +187,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                     SHA256SUM = $sha256sum
                     Filename = $filename
                     KeyID = '34365D9472D7468F' # TODO: Get the Key ID.
+                    Extension = $extension
                 }
 
                 $providerFileData
@@ -311,20 +312,24 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                                                    $providersEndpoint.TrimStart('/')).TrimEnd('/')
             }
             process {
-                Write-Verbose "Found the following provider: $Providername"
-                Write-Verbose "Checking if the provider already exists..."
+                $providerPayload = @{
+                    data = @{
+                        type       = 'registry-providers'
+                        attributes = @{
+                            name            = $ProviderName
+                            namespace       = $ProviderNamespace
+                            'registry-name' = 'private'
+                        }
+                    }
+                } | ConvertTo-Json -Depth 10
+
                 try {
-                    Write-Verbose "Listing all of the Terraform providers published in the registry..."
-                    $response = Invoke-RestMethod -Headers $headers -Method GET -Uri $uri
+                    Write-Verbose "Posting to the Terraform registry: $uri"
+                    $response = Invoke-RestMethod -Headers $headers -Method POST -Uri $uri -Body $providerPayload
                 }
                 catch {
-                    Write-Error "Failed to query Artifactory with the following error: $_"
+                    Write-Error "Failed to post to the Terraform registry: $_"
                     return
-                }
-
-                if ($response.data.attributes.name -like $ProviderName) {
-                    # Process Terraform providers, this condition is if they exist in the registry so no need to create them.
-
                 }
             }
         }
@@ -362,9 +367,9 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             $providerFilesData += Invoke-ParseProviderFileFullPath @HashArguments
         }
 
+        # Capture provider data from the Terraform registry.
         $publishedProvidersData = @{}
 
-        # Query the Terraform registry for a list of providers, their versions, and the platforms published.
         $HashArguments = @{
             TerraformEnterpriseContext = $TerraformEnterpriseContext
         }
@@ -403,14 +408,18 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
         }
 
         # Create the necessary Terraform registry objects in preparation for publication.
-        $providerData.Name | Get-Unique | ForEach-Object {
-            $HashArguments = @{
-                TerraformEnterpriseContext = $TerraformEnterpriseContext
-                ProviderNamespace          = "hashicorp"
-                ProviderName               = $_
-            }
+        $providerFilesData.Name | Get-Unique | ForEach-Object {
+            if ($publishedProvidersData.$_) {
+                Write-Verbose "The provider $_ has already been published to the registry."
+            } else {
+                $HashArguments = @{
+                    TerraformEnterpriseContext = $TerraformEnterpriseContext
+                    ProviderNamespace          = $TerraformEnterpriseContext.Organization
+                    ProviderName               = $_
+                }
 
-            New-TerraformRegistryProvider @HashArguments
+                New-TerraformRegistryProvider @HashArguments
+            }
         }
     }
 }
