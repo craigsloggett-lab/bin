@@ -383,14 +383,8 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             (Get-TerraformRegistryProviderVersionsData @HashArguments) | ForEach-Object {
                 $providerVersion = $_.attributes.version
 
-                if ($_.attributes.'shasums-uploaded' -like 'False') {
-                    $publishedProvidersData.$providerName.$providerVersion.Add('links', @{
-                        'shasums-upload'     = $_.links.'shasums-upload'
-                        'shasums-sig-upload' = $_.links.'shasums-sig-upload'
-                    })
-                }
-
                 $publishedProvidersData.$providerName.Add($providerVersion, @{
+                    links     = $_.links
                     platforms = @()
                 })
 
@@ -403,10 +397,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 # Last is a list of platforms published for a given version of a provider.
                 (Get-TerraformRegistryProviderVersionPlatformsData @HashArguments) | ForEach-Object {
                     # Populate a hashtable with the published providers, their versions, and the associated platform details.
-                    $publishedProvidersData.$providerName.$providerVersion.Add($_., @{
-                        'shasums-upload'     = $_.links.'shasums-upload'
-                        'shasums-sig-upload' = $_.links.'shasums-sig-upload'
-                    })
+                    $publishedProvidersData.$providerName.$providerVersion.platforms += $_
                 }
             }
         }
