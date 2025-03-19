@@ -400,6 +400,76 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 $response.data
             }
         }
+
+        function New-TerraformRegistryProviderVersionPlatform {
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [hashtable]$TerraformEnterpriseContext,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderNamespace,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderName,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderVersion,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderOS,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderArch,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderSHA256SUM,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderFilename
+            )
+            begin {
+                $headers          = $TerraformEnterpriseContext.Headers
+                $versionsEndpoint = ("/organizations/{0}/registry-providers/private/{1}/{2}/versions/{3}/platforms" -f $TerraformEnterpriseContext.Organization,
+                                                                                                                       $ProviderNamespace,
+                                                                                                                       $ProviderName,
+                                                                                                                       $ProviderVersion)
+                $uri              = ("{0}/{1}" -f $TerraformEnterpriseContext.ApiUrl,
+                                                  $versionsEndpoint.TrimStart('/')).TrimEnd('/')
+            }
+            process {
+                $providerVersionPlatformPayload = @{
+                    data = @{
+                        type       = 'registry-provider-version-platforms'
+                        attributes = @{
+                            os       = $ProviderOS
+                            arch     = $ProviderArch
+                            shasum   = $ProviderSHA256SUM
+                            filename = $ProviderFilename
+                        }
+                    }
+                } | ConvertTo-Json -Depth 10
+
+                try {
+                    Write-Verbose "Posting to the Terraform registry: $uri"
+                    $response = Invoke-RestMethod -Headers $headers -Method POST -Uri $uri -Body $providerVersionPlatformPayload
+                }
+                catch {
+                    Write-Error "Failed to post to the Terraform registry: $_"
+                    return
+                }
+
+                $response.data
+            }
+        }
     }
     process {
         # Discover Terraform provider files in Artifactory.
@@ -492,27 +562,35 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             }
         }
 
-        # Create a provider version in the Terraform registry if it hasn't been created yet.
         $providerFilesData | ForEach-Object {
-            $providerName         = $_.Name
-            $providerVersion      = $_.Version
-            $providerVersionKeyID = $_.KeyID
-
+            # Create a provider version in the Terraform registry if it hasn't been created yet.
             if (!$publishedProvidersData.$providerName.$providerVersion) {
                 $HashArguments = @{
                     TerraformEnterpriseContext = $TerraformEnterpriseContext
                     ProviderNamespace          = $TerraformEnterpriseContext.Organization
-                    ProviderName               = $providerName
-                    ProviderVersion            = $providerVersion
+                    ProviderName               = $_.Name
+                    ProviderVersion            = $_.Version
                     ProviderVersionKeyID       = $_.KeyID
                 }
 
                 $response = New-TerraformRegistryProviderVersion @HashArguments
 
-                $publishedProvidersData.$providerName.Add($providerVersion, @{
+                $publishedProvidersData.($_.Name).Add($_.Version, @{
                     links     = $response.links
                     platforms = @()
                 })
+            }
+
+            switch ($_.Extension) {
+                '.zip' {
+                  Write-Verbose "Found a .zip file!"
+                }
+                '.sig' {
+                  Write-Verbose "Found a .sig file!"
+                }
+                default {
+                  Write-Verbose ("Found a SHA256SUMS file? --> {0}" -f $_.Filename)
+                }
             }
         }
     }
