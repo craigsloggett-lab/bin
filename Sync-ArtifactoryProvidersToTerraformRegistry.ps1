@@ -74,7 +74,8 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             Organization = $TerraformEnterpriseOrganization
     
             Headers = @{
-                Authorization = "Bearer $TerraformEnterpriseBearerToken"
+                Authorization  = "Bearer $TerraformEnterpriseBearerToken"
+                'Content-Type' = 'application/vnd.api+json'
             }
         }
 
