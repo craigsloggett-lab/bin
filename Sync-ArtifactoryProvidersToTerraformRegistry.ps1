@@ -230,11 +230,16 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
                 [Parameter(Mandatory = $true)]
                 [ValidateNotNullOrEmpty()]
+                [string]$ProviderNamespace,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
                 [string]$ProviderName
             )
             begin {
                 $headers          = $TerraformEnterpriseContext.Headers
-                $versionsEndpoint = ("/organizations/{0}/registry-providers/private/{0}/{1}/versions" -f $TerraformEnterpriseContext.Organization,
+                $versionsEndpoint = ("/organizations/{0}/registry-providers/private/{1}/{2}/versions" -f $TerraformEnterpriseContext.Organization,
+                                                                                                         $ProviderNamespace,
                                                                                                          $ProviderName)
                 $uri              = ("{0}/{1}" -f $TerraformEnterpriseContext.ApiUrl,
                                                   $versionsEndpoint.TrimStart('/')).TrimEnd('/')
@@ -262,6 +267,10 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
                 [Parameter(Mandatory = $true)]
                 [ValidateNotNullOrEmpty()]
+                [string]$ProviderNamespace,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
                 [string]$ProviderName,
 
                 [Parameter(Mandatory = $true)]
@@ -270,7 +279,8 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             )
             begin {
                 $headers           = $TerraformEnterpriseContext.Headers
-                $platformsEndpoint = ("/organizations/{0}/registry-providers/private/{0}/{1}/versions/{2}/platforms" -f $TerraformEnterpriseContext.Organization,
+                $platformsEndpoint = ("/organizations/{0}/registry-providers/private/{1}/{2}/versions/{3}/platforms" -f $TerraformEnterpriseContext.Organization,
+                                                                                                                        $ProviderNamespace,
                                                                                                                         $ProviderName,
                                                                                                                         $ProviderVersion)
                 $uri               = ("{0}/{1}" -f $TerraformEnterpriseContext.ApiUrl,
@@ -333,6 +343,62 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 }
             }
         }
+
+        function New-TerraformRegistryProviderVersion {
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [hashtable]$TerraformEnterpriseContext,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderNamespace,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderName,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderVersion,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderVersionKeyID
+            )
+            begin {
+                $headers          = $TerraformEnterpriseContext.Headers
+                $versionsEndpoint = ("/organizations/{0}/registry-providers/private/{1}/{2}/versions" -f $TerraformEnterpriseContext.Organization,
+                                                                                                         $ProviderNamespace,
+                                                                                                         $ProviderName)
+                $uri              = ("{0}/{1}" -f $TerraformEnterpriseContext.ApiUrl,
+                                                  $versionsEndpoint.TrimStart('/')).TrimEnd('/')
+            }
+            process {
+                $providerVersionPayload = @{
+                    data = @{
+                        type       = 'registry-provider-versions'
+                        attributes = @{
+                            version   = $ProviderVersion
+                            'key-id'  = $ProviderVersionKeyID
+                            protocols = @("5.0")
+                        }
+                    }
+                } | ConvertTo-Json -Depth 10
+
+                try {
+                    Write-Verbose "Posting to the Terraform registry: $uri"
+                    $response = Invoke-RestMethod -Headers $headers -Method POST -Uri $uri -Body $providerVersionPayload
+                }
+                catch {
+                    Write-Error "Failed to post to the Terraform registry: $_"
+                    return
+                }
+
+                $response
+            }
+        }
     }
     process {
         # Discover Terraform provider files in Artifactory.
@@ -381,6 +447,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
             $HashArguments = @{
                 TerraformEnterpriseContext = $TerraformEnterpriseContext
+                ProviderNamespace          = $TerraformEnterpriseContext.Organization
                 ProviderName               = $providerName
             }
             
@@ -395,6 +462,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
                 $HashArguments = @{
                     TerraformEnterpriseContext = $TerraformEnterpriseContext
+                    ProviderNamespace          = $TerraformEnterpriseContext.Organization
                     ProviderName               = $providerName
                     ProviderVersion            = $providerVersion
                 }
@@ -409,9 +477,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
         # Create the necessary Terraform registry objects in preparation for publication.
         $providerFilesData.Name | Get-Unique | ForEach-Object {
-            if ($publishedProvidersData.$_) {
-                Write-Verbose "The provider $_ has already been published to the registry."
-            } else {
+            if (!$publishedProvidersData.$_) {
                 $HashArguments = @{
                     TerraformEnterpriseContext = $TerraformEnterpriseContext
                     ProviderNamespace          = $TerraformEnterpriseContext.Organization
