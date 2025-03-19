@@ -564,7 +564,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
         $providerFilesData | ForEach-Object {
             # Create a provider version in the Terraform registry if it hasn't been created yet.
-            if (!$publishedProvidersData.$providerName.$providerVersion) {
+            if (!$publishedProvidersData.($_.Name).($_.Version)) {
                 $HashArguments = @{
                     TerraformEnterpriseContext = $TerraformEnterpriseContext
                     ProviderNamespace          = $TerraformEnterpriseContext.Organization
@@ -581,6 +581,8 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 })
             }
 
+            $providerFileData = $_
+
             switch ($_.Extension) {
                 '.zip' {
                   Write-Verbose "Found a .zip file!"
@@ -589,7 +591,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                   Write-Verbose "Found a .sig file!"
                 }
                 default {
-                  Write-Verbose ("Found a SHA256SUMS file? --> {0}" -f $_.Filename)
+                  Write-Verbose ("Found a SHA256SUMS file? --> {0}" -f $providerFileData.Extension)
                 }
             }
         }
