@@ -172,6 +172,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 $version   = $filename.Split('_')[1]
             }
             process {
+                Write-Verbose "Parsing provider file: $filename"
                 if ($extension -like '.zip') {
                     $os        = $filename.Split('_')[2]
                     $arch      = ($filename.Split('_')[3]).Replace($extension, '') # Drop the extension.
@@ -189,6 +190,33 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 }
 
                 $providerFileData
+            }
+        }
+
+        function Get-TerraformRegistryProviders {
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [hashtable]$TerraformEnterpriseContext,
+            )
+            begin {
+                $headers           = $TerraformEnterpriseContext.Headers
+                $providersEndpoint = ("/organizations/{0}/registry-providers" -f $TerraformEnterpriseContext.Organization)
+                $uri               = ("{0}/{1}" -f $TerraformEnterpriseContext.ApiUrl,
+                                                   $providersEndpoint.TrimStart('/')).TrimEnd('/')
+            }
+            process {
+                try {
+                    Write-Verbose "Querying the Terraform registry: $uri"
+                    $response = Invoke-RestMethod -Headers $headers -Method GET -Uri $uri
+                }
+                catch {
+                    Write-Error "Failed to query the Terraform registry: $_"
+                    return
+                }
+
+                $response
             }
         }
 
@@ -255,15 +283,18 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
         }
 
         # Capture provider data from the downloaded files.
-        $providerData = @()
+        $providerFilesData = @()
 
         Get-ChildItem $downloadPath | ForEach-Object {
             $HashArguments = @{
                 ProviderFileFullPath = $_.FullName
             }
 
-            $providerData += Invoke-ParseProviderFileFullPath @HashArguments
+            $providerFilesData += Invoke-ParseProviderFileFullPath @HashArguments
         }
+
+        # Query the Terraform registry for a list of providers published.
+        $publishedProvidersData = Get-TerraformRegistryProviders
 
         # Create the necessary Terraform registry objects in preparation for publication.
         $providerData.Name | Get-Unique | ForEach-Object {
