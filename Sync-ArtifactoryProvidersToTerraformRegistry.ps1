@@ -107,9 +107,9 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
                 $filePaths = @()
                 if ($response.children) {
-                    foreach ($child in $response.children) {
-                        Write-Verbose ("Found a child item at the following relative path: {0}" -f $child.uri)
-                        Get-ArtifactoryProviderFilePaths -ArtifactoryContext $ArtifactoryContext -CurrentPath ("{0}/{1}" -f $CurrentPath, $child.uri.TrimStart('/'))
+                    $response.children | ForEach-Object {
+                        Write-Verbose ("Found a child item at the following relative path: {0}" -f $_.uri)
+                        Get-ArtifactoryProviderFilePaths -ArtifactoryContext $ArtifactoryContext -CurrentPath ("{0}/{1}" -f $CurrentPath, $_.uri.TrimStart('/'))
                     }
                 } else {
                     Write-Verbose ("Determined the following is a file: {0}" -f $CurrentPath)
@@ -193,12 +193,12 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             }
         }
 
-        function Get-TerraformRegistryProviders {
+        function Get-TerraformRegistryProviderNames {
             [CmdletBinding()]
             param (
                 [Parameter(Mandatory = $true)]
                 [ValidateNotNullOrEmpty()]
-                [hashtable]$TerraformEnterpriseContext,
+                [hashtable]$TerraformEnterpriseContext
             )
             begin {
                 $headers           = $TerraformEnterpriseContext.Headers
@@ -216,7 +216,39 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                     return
                 }
 
-                $response
+                $response.data.attributes.name
+            }
+        }
+
+        function Get-TerraformRegistryProviderVersions {
+            [CmdletBinding()]
+            param (
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [hashtable]$TerraformEnterpriseContext,
+
+                [Parameter(Mandatory = $true)]
+                [ValidateNotNullOrEmpty()]
+                [string]$ProviderName
+            )
+            begin {
+                $headers          = $TerraformEnterpriseContext.Headers
+                $versionsEndpoint = ("/organizations/{0}/registry-providers/private/{0}/{1}/versions" -f $TerraformEnterpriseContext.Organization,
+                                                                                                         $ProviderName)
+                $uri              = ("{0}/{1}" -f $TerraformEnterpriseContext.ApiUrl,
+                                                  $versionsEndpoint.TrimStart('/')).TrimEnd('/')
+            }
+            process {
+                try {
+                    Write-Verbose "Querying the Terraform registry: $uri"
+                    $response = Invoke-RestMethod -Headers $headers -Method GET -Uri $uri
+                }
+                catch {
+                    Write-Error "Failed to query the Terraform registry: $_"
+                    return
+                }
+
+                $response.data.attributes.version
             }
         }
 
@@ -272,10 +304,10 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
         # Download Terraform provider files locally.
         $downloadPath = Join-Path "$Env:USERPROFILE\Downloads" "TerraformProviders"
 
-        foreach ($uri in $artifactoryProviderFilePaths) {
+        $artifactoryProviderFilePaths | ForEach-Object {
             $HashArguments = @{
                 ArtifactoryContext = $ArtifactoryContext
-                ArtifactoryUri     = $uri
+                ArtifactoryUri     = $_
                 DownloadPath       = $downloadPath
             }
 
@@ -294,7 +326,24 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
         }
 
         # Query the Terraform registry for a list of providers published.
-        $publishedProvidersData = Get-TerraformRegistryProviders
+        $HashArguments = @{
+            TerraformEnterpriseContext = $TerraformEnterpriseContext
+        }
+
+        $publishedProvidersData = ${}
+        $publishedProviderNames = Get-TerraformRegistryProviderNames @HashArguments 
+
+        # Query the Terraform registry for a list of versions of providers published.
+        $publishedProviderNames | ForEach-Object {
+            $HashArguments = @{
+                TerraformEnterpriseContext = $TerraformEnterpriseContext
+                ProviderName               = $_
+            }
+            
+            $publishedProviderVersions = Get-TerraformRegistryProviderVersions @HashArguments
+
+            $publishedProvidersData.Add($_, @{ versions = $publishedProviderVersions }) 
+        }
 
         # Create the necessary Terraform registry objects in preparation for publication.
         $providerData.Name | Get-Unique | ForEach-Object {
