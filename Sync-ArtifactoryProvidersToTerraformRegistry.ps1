@@ -167,10 +167,10 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 [string]$ProviderFileFullPath
             )
             begin {
-                $filename  = Split-Path $ProviderFileFullPath -Leaf
-                $extension = [System.IO.Path]::GetExtension($filename)
-                $name      = ($filename.Split('_')[0]).Split('-')[2] # terraform-provider-<name>
-                $version   = $filename.Split('_')[1]
+                $filename     = Split-Path $ProviderFileFullPath -Leaf
+                $extension    = [System.IO.Path]::GetExtension($filename)
+                $providerName = ($filename.Split('_')[0]).Split('-')[2] # terraform-provider-<name>
+                $version      = $filename.Split('_')[1]
             }
             process {
                 Write-Verbose "Parsing provider file: $filename"
@@ -181,7 +181,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                 }
                 $providerFileData = @{
                     Namespace    = $TerraformEnterpriseContext.Organization
-                    ProviderName = $name
+                    ProviderName = $providerName
                     Version      = $version
                     OS           = $os
                     Arch         = $arch
@@ -547,7 +547,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
         }
 
         # Create a provider in the Terraform registry if it hasn't been created yet.
-        $providerFilesData.Name | Get-Unique | ForEach-Object {
+        $providerFilesData.ProviderName | Get-Unique | ForEach-Object {
             if (!$publishedProvidersData.$_) {
                 Write-Verbose "The following provider has not been published yet: $_"
                 $HashArguments = @{
@@ -564,18 +564,18 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
         $providerFilesData | ForEach-Object {
             # Create a provider version in the Terraform registry if it hasn't been created yet.
-            if (!$publishedProvidersData.($_.Name).($_.Version)) {
+            if (!$publishedProvidersData.($_.ProviderName).($_.Version)) {
                 $HashArguments = @{
                     TerraformEnterpriseContext = $TerraformEnterpriseContext
                     ProviderNamespace          = $TerraformEnterpriseContext.Organization
-                    ProviderName               = $_.Name
+                    ProviderName               = $_.ProviderName
                     ProviderVersion            = $_.Version
                     ProviderVersionKeyID       = $_.KeyID
                 }
 
                 $response = New-TerraformRegistryProviderVersion @HashArguments
 
-                $publishedProvidersData.($_.Name).Add($_.Version, @{
+                $publishedProvidersData.($_.ProviderName).Add($_.Version, @{
                     links     = $response.links
                     platforms = @()
                 })
@@ -585,7 +585,29 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
             switch ($_.Extension) {
                 '.zip' {
-                  Write-Verbose "Found a .zip file!"
+                    $platform = $publishedProvidersData.$($providerFileData.ProviderName).$($providerFileData.Version).platforms |
+                        Where-Object {
+                            $_.attributes.os   -eq $providerFileData.OS   -and
+                            $_.attributes.arch -eq $providerFileData.Arch
+                        }
+
+                    if (!$platform) {
+                        $HashArguments = @{
+                            TerraformEnterpriseContext = $TerraformEnterpriseContext
+                            ProviderNamespace          = $providerFileData.Namespace
+                            ProviderName               = $providerFileData.ProviderName
+                            ProviderVersion            = $providerFileData.Version
+                            ProviderOS                 = $providerFileData.OS
+                            ProviderArch               = $providerFileData.Arch
+                            ProviderSHA256SUM          = $providerFileData.SHA256SUM
+                            ProviderFilename           = $providerFileData.Filename
+                        }
+
+                        $response = New-TerraformRegistryProviderVersionPlatform @HashArguments
+
+                        # Append the new platform record so next time we know it’s published
+                        $publishedProvidersData.$($providerFileData.ProviderName).$($providerFileData.Version).platforms += $response
+                    }
                 }
                 '.sig' {
                   Write-Verbose "Found a .sig file!"
