@@ -1,16 +1,53 @@
 function Sync-ArtifactoryProvidersToTerraformRegistry {
     <#
     .SYNOPSIS
-        TODO: Add a meaninful synopsis.
+        Synchronizes private Terraform providers stored in Artifactory with Terraform Enterprise's private registry.
     
     .DESCRIPTION
-        TODO: Add a meaningful description.
+        This script traverses an Artifactory repository to locate and download custom Terraform providers
+        (ZIP, checksum, and signature files). It then creates or updates matching providers, versions, and
+        platforms in Terraform Enterprise, uploading the provider artifacts to the private registry so that
+        teams can consume them directly from Terraform Enterprise.
     
     .PARAMETER ArtifactoryApiUrl
-        TODO: Add parameter descriptions.
-
+        The base URL for the Artifactory REST API endpoint.
+    
+    .PARAMETER ArtifactoryItemPropertiesApiUrl
+        The Artifactory storage/properties API URL used for enumerating items in the repository.
+    
+    .PARAMETER ArtifactoryAccessToken
+        The access token or API key used to authenticate requests to Artifactory.
+    
+    .PARAMETER ArtifactoryRepositoryKey
+        The name of the repository within Artifactory that hosts the Terraform providers.
+    
+    .PARAMETER ArtifactoryRootItemPath
+        The root path under which Terraform provider files are located within the Artifactory repository.
+    
+    .PARAMETER TerraformEnterpriseApiUrl
+        The base URL for the Terraform Enterprise API (e.g., https://app.terraform.io/api/v2).
+    
+    .PARAMETER TerraformEnterpriseOrganization
+        The name of the Terraform Enterprise organization where the private registry is hosted.
+    
+    .PARAMETER TerraformEnterpriseBearerToken
+        The bearer token for authenticating with the Terraform Enterprise API.
+    
     .EXAMPLE
-        TODO: Add a meaningful example.
+        . .\Sync-ArtifactoryProvidersToTerraformRegistry
+
+        $HashArguments = @{
+            ArtifactoryApiUrl = 'https://artifactory.example.com/artifactory/api' `
+            ArtifactoryItemPropertiesApiUrl = 'https://artifactory.example.com/artifactory/api/storage' `
+            ArtifactoryAccessToken = 'my-artifactory-token' `
+            ArtifactoryRepositoryKey = 'my-terraform-repo' `
+            ArtifactoryRootItemPath = 'terraform-providers' `
+            TerraformEnterpriseApiUrl = 'https://app.terraform.io/api/v2' `
+            TerraformEnterpriseOrganization = 'my-org' `
+            TerraformEnterpriseBearerToken = 'my-tfe-token'
+        }
+
+        Sync-ArtifactoryProvidersToTerraformRegistry $HashArguments -Verbose
     #>
     
     [CmdletBinding()]
