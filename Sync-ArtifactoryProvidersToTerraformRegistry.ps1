@@ -666,6 +666,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                     ProviderFileFullPath       = $_.FullPath
                 }
 
+                Write-Verbose ("Publishing: " -f $_.FullPath)
                 Publish-TerraformProviderFile @HashArguments
             }
         }
