@@ -641,8 +641,11 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                         # Append the new platform record so next time we know it’s published
                         $publishedProvidersData.$($providerFileData.ProviderName).$($providerFileData.Version).platforms += $response
 
-                        # Grab the binary upload URL.
+                        # Grab the binary upload URL from the response.
                         $providerFileUploadUrl = $response.links.'provider-binary-upload'
+                    } else {
+                        # Grab the binary upload URL from the published providers data.
+                        $providerFileUploadUrl = $platform.links.'provider-binary-upload'
                     }
 
                 }
@@ -668,6 +671,9 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
 
                 Publish-TerraformProviderFile @HashArguments
             }
+
+            # Reset the variable for the next iteration.
+            Clear-Variable -name providerFileUploadUrl
         }
     }
 }
