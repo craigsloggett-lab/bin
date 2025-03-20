@@ -493,7 +493,7 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
             }
             process {
                 try {
-                    Write-Verbose "Posting to the Terraform registry: $uri"
+                    Write-Verbose "Posting to the Terraform registry: $ProviderFileFullPath"
                     $response = Invoke-RestMethod -Headers $headers -Method PUT -Uri $uri -InFile $ProviderFileFullPath
                 }
                 catch {
@@ -666,7 +666,6 @@ function Sync-ArtifactoryProvidersToTerraformRegistry {
                     ProviderFileFullPath       = $_.FullPath
                 }
 
-                Write-Verbose ("Publishing: " -f $_.FullPath)
                 Publish-TerraformProviderFile @HashArguments
             }
         }
